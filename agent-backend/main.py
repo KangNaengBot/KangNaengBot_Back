@@ -6,7 +6,7 @@ FastAPI 백엔드 - Agent Engine과 연동
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from routers import chat, database
+from routers import chat, database, auth
 import config
 
 # FastAPI 앱 생성
@@ -28,6 +28,7 @@ app.add_middleware(
 # 라우터 등록
 app.include_router(chat.router, prefix="/chat", tags=["chat"])
 app.include_router(database.router, prefix="/db", tags=["database"])
+app.include_router(auth.router, prefix="/auth", tags=["auth"])
 
 # 헬스체크 (Cloud Run 필수)
 @app.get("/health")
