@@ -1,125 +1,204 @@
 """
-채팅 서비스 - Vertex AI Agent Engine과 통신
+ChatService - 채팅 메시지 처리 서비스
+
+Vertex AI와 통신하고 Repository를 통해 메시지를 저장합니다.
 """
-import time
-import uuid
+from typing import Generator, Optional
+from uuid import UUID
+
+from domain.entities.chat_message import ChatMessage
+from domain.repositories.chat_message_repository import ChatMessageRepository
+from domain.repositories.chat_session_repository import ChatSessionRepository
 import vertexai
 from vertexai import agent_engines
-from typing import Generator, Dict, Any
 import config
 
+
 class ChatService:
-    """Agent Engine과 통신하는 서비스"""
+    """
+    채팅 메시지 처리 서비스
     
-    def __init__(self):
-        """Vertex AI 및 Agent Engine 초기화"""
+    배포된 Vertex AI Agent Engine과 통신하여 메시지를 주고받고,
+    Repository를 통해 DB에 저장합니다.
+    """
+    
+    def __init__(
+        self,
+        message_repo: ChatMessageRepository,
+        session_repo: ChatSessionRepository
+    ):
+        """
+        Args:
+            message_repo: ChatMessage Repository
+            session_repo: ChatSession Repository
+        """
+        self.message_repo = message_repo
+        self.session_repo = session_repo
+        
         # Vertex AI 초기화
         vertexai.init(
             project=config.GOOGLE_CLOUD_PROJECT,
             location=config.VERTEX_AI_LOCATION
         )
         
-        # 배포된 Agent Engine 가져오기
-        self.engine = agent_engines.get(config.AGENT_RESOURCE_ID)
-    
-    def create_new_chat(self) -> Dict[str, str]:
-        """
-        새 채팅 시작 - 익명 user_id 생성 + 세션 생성
-        
-        Returns:
-            {"user_id": "anon_xxx", "session_id": "session_yyy"}
-        """
-        # 익명 사용자 ID 생성
-        user_id = f"anon_{uuid.uuid4().hex[:8]}"
-        
-        # 세션 생성
-        session_response = self.engine.create_session(user_id=user_id)
-        
-        # 세션 ID 추출
-        if isinstance(session_response, dict):
-            session_id = session_response.get('name', '').split('/')[-1]
-            if not session_id:
-                session_id = session_response.get('id', str(session_response))
-        else:
-            session_id = str(session_response)
-        
-        return {
-            "user_id": user_id,
-            "session_id": session_id
-        }
+        # 배포된 Agent Engine 연결 (프로덕션 방식)
+        print(f"[ChatService] Connecting to deployed Agent Engine: {config.AGENT_RESOURCE_ID}")
+        self.remote_app = agent_engines.get(config.AGENT_RESOURCE_ID)
+        print(f"[ChatService] ✅ Connected to: {self.remote_app.display_name or 'Agent Engine'}")
     
     def stream_message(
-        self, 
-        user_id: str, 
-        session_id: str, 
-        message: str
+        self,
+        user_id: int,
+        session_sid: UUID,
+        message_text: str
     ) -> Generator[str, None, None]:
         """
         메시지 전송 및 스트리밍 응답
         
+        1. 세션 조회
+        2. 사용자 메시지 저장
+        3. Vertex AI에 전송 및 스트리밍 응답
+        4. 에이전트 응답 저장
+        5. 첫 메시지일 경우 title 자동 업데이트
+        
         Args:
             user_id: 사용자 ID
-            session_id: 세션 ID
-            message: 사용자 메시지
+            session_sid: 세션 UUID
+            message_text: 사용자 메시지
             
         Yields:
-            Agent 응답 텍스트 (작은 청크로 스트리밍)
+            응답 텍스트 (문자 단위)
         """
         try:
-            # Reasoning Engine에 메시지 전송 (스트리밍)
-            for event in self.engine.stream_query(
-                user_id=user_id,
-                session_id=session_id,
-                message=message
-            ):
-                # 응답에서 텍스트 추출
-                text = self._extract_text(event)
-                if text:
-                    # 텍스트를 문자 단위로 나눠서 전송 (한글도 정상 처리)
-                    # 한 글자씩 전송 (프론트엔드에서 지연 처리)
-                    for char in text:
+            # 1. 세션 조회
+            session = self.session_repo.find_by_sid(session_sid)
+            if not session:
+                raise ValueError(f"Session not found: {session_sid}")
+            
+            # user_id를 정수로 강제 변환 (타입 안전성 보장)
+            user_id = int(user_id)
+            
+            # 세션 권한 검증
+            print(f"[ChatService] Permission check: session.user_id={session.user_id}, user_id={user_id}")
+            if session.user_id != user_id:
+                raise PermissionError(f"Unauthorized access to session (session owner: {session.user_id}, requester: {user_id})")
+            
+            # 2. 사용자 메시지 저장
+            user_message = ChatMessage.create(
+                session_id=session.id,
+                role=ChatMessage.ROLE_USER,
+                content=message_text
+            )
+            self.message_repo.save(user_message)
+            
+            # 2-1. 첫 메시지인지 확인 (title이 "새로운 대화"면 첫 메시지)
+            is_first_message = session.title == "새로운 대화"
+            if is_first_message:
+                # 메시지의 앞 50자를 title로 설정
+                new_title = message_text[:50] + ("..." if len(message_text) > 50 else "")
+                self.session_repo.update_title(session_sid, new_title)
+                print(f"[ChatService] Updated session title: {new_title}")
+            
+            # 3. 배포된 Agent Engine에 메시지 전송 (스트리밍)
+            full_response = ""
+            
+            try:
+                print(f"[ChatService] Sending to deployed Agent Engine:")
+                print(f"  user_id={user_id}")
+                print(f"  session_id={session.vertex_session_id}")
+                print(f"  message={message_text[:50]}...")
+                
+                # 배포된 Agent의 stream_query 메서드 호출
+                for event in self.remote_app.stream_query(
+                    message=message_text,
+                    user_id=str(user_id),
+                    session_id=session.vertex_session_id
+                ):
+                    # event를 문자열로 변환 (확실하게)
+                    event_text = ""
+                    
+                    if isinstance(event, str):
+                        event_text = event
+                    elif isinstance(event, dict):
+                        # dict인 경우 'content' 또는 'text' 키 찾기
+                        event_text = str(event.get('content') or event.get('text') or event)
+                    elif hasattr(event, 'content'):
+                        event_text = str(event.content)
+                    elif hasattr(event, 'text'):
+                        event_text = str(event.text)
+                    else:
+                        event_text = str(event)
+                    
+                    # 응답 누적 (문자열로 확실히 변환 후)
+                    full_response += str(event_text)
+                    
+                    # 문자 단위로 스트리밍
+                    for char in str(event_text):
                         yield char
+                
+                print(f"[ChatService] Agent response complete. Total length: {len(full_response)}")
+            
+            except Exception as engine_error:
+                error_msg = f"\n\n[Agent Engine Error] {str(engine_error)}"
+                print(f"[ChatService] Agent Engine error: {engine_error}")
+                import traceback
+                traceback.print_exc()
+                yield error_msg
+                return
+            
+            # 4. 에이전트 응답 저장
+            if full_response:
+                assistant_message = ChatMessage.create(
+                    session_id=session.id,
+                    role=ChatMessage.ROLE_ASSISTANT,
+                    content=full_response
+                )
+                self.message_repo.save(assistant_message)
         
         except Exception as e:
-            # 에러 발생 시 에러 메시지 반환
-            yield f"\n\n[오류] {str(e)}"
+            error_msg = f"\n\n[오류] {str(e)}"
+            print(f"[ChatService] Error in stream_message: {e}")
+            yield error_msg
     
-    def _extract_text(self, event: Dict[str, Any]) -> str:
+    def get_session_messages(
+        self,
+        session_sid: UUID,
+        limit: Optional[int] = None
+    ) -> list[ChatMessage]:
         """
-        Agent Engine 응답 이벤트에서 텍스트 추출
+        세션의 메시지 내역 조회
         
         Args:
-            event: Agent Engine 응답 이벤트
+            session_sid: 세션 UUID
+            limit: 제한할 메시지 수
             
         Returns:
-            추출된 텍스트 또는 빈 문자열
+            메시지 목록
         """
-        if not isinstance(event, dict):
-            return ""
+        session = self.session_repo.find_by_sid(session_sid)
+        if not session:
+            return []
         
-        # content.parts[].text 구조에서 텍스트 추출
-        content = event.get('content', {})
-        parts = content.get('parts', [])
-        
-        for part in parts:
-            if isinstance(part, dict) and 'text' in part:
-                return part['text']
-        
-        return ""
+        return self.message_repo.find_by_session(session.id, limit=limit)
 
-# 싱글톤 인스턴스 (앱 시작 시 한 번만 초기화)
-_chat_service_instance = None
+
+# Dependency Injection을 위한 싱글톤 팩토리
+_chat_service_instance: Optional[ChatService] = None
+
 
 def get_chat_service() -> ChatService:
     """
     ChatService 싱글톤 인스턴스 반환
     
-    FastAPI dependency injection용
+    FastAPI Dependency로 사용됩니다.
     """
     global _chat_service_instance
     
     if _chat_service_instance is None:
-        _chat_service_instance = ChatService()
+        from supabase import create_client
+        supabase = create_client(config.SUPABASE_URL, config.SUPABASE_KEY)
+        message_repo = ChatMessageRepository(supabase)
+        session_repo = ChatSessionRepository(supabase)
+        _chat_service_instance = ChatService(message_repo, session_repo)
     
     return _chat_service_instance
-
