@@ -1,5 +1,5 @@
 """
-goole_adk Agent Engine 배포 스크립트
+google_adk Agent Engine 배포 스크립트
 
 강남대학교 Multi-Agent 시스템을 Vertex AI Agent Engine에 배포합니다.
 """
@@ -11,7 +11,7 @@ from absl import app, flags
 from dotenv import load_dotenv
 from vertexai import agent_engines
 from vertexai.preview import reasoning_engines
-from goole_adk.agent import root_agent
+from google_adk.agent import root_agent
 
 FLAGS = flags.FLAGS
 
@@ -49,8 +49,30 @@ def create() -> None:
         enable_tracing=True,
     )
     
-    print("📦 Packaging goole_adk...")
+    print("📦 Packaging google_adk...")
     
+    # Memory Bank 설정
+    memory_bank_config = {
+        "customization_config": {
+            "memory_topics": [
+                # 관리형 토픽 (Google 정의)
+                {"managed_memory_topic": {"managed_topic_enum": "USER_PERSONAL_INFO"}},
+                {"managed_memory_topic": {"managed_topic_enum": "USER_PREFERENCES"}},
+                {"managed_memory_topic": {"managed_topic_enum": "KEY_CONVERSATION_DETAILS"}},
+                
+                # 커스텀 토픽 (학교 생활 특화)
+                {
+                    "custom_memory_topic": {
+                        "label": "STUDENT_INFO",
+                        "description": "학생의 학번, 전공, 학년, 수강 과목, 졸업 요건 진행 상황 등 학교 생활과 관련된 구체적인 정보",
+                        "label": "CLUB_ACTIVITY",  
+                        "description": "동아리 활동, 프로젝트 참여, 대회 준비 등"
+                    }
+                }
+            ]
+        }
+    }
+
     # Agent Engine으로 배포
     remote_app = agent_engines.create(
         agent_engine=adk_app,
@@ -60,7 +82,7 @@ def create() -> None:
             "beautifulsoup4",
             "python-dotenv",
         ],
-        extra_packages=["./goole_adk"],
+        extra_packages=["./google_adk"],
     )
     
     print()

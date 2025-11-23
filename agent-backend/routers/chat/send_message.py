@@ -62,7 +62,7 @@ async def send_message(
         """SSE 이벤트 생성기"""
         try:
             # Agent Engine에서 스트리밍 응답 받기
-            for text_chunk in chat_service.stream_message(
+            async for text_chunk in chat_service.stream_message(
                 user_id=user_id,
                 session_sid=session_uuid,
                 message_text=request.message

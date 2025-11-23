@@ -1,0 +1,13 @@
+.gcloudignore
+.git
+.gitignore
+__pycache__/
+*.pyc
+.env
+.venv/
+venv/
+deploy_backend.sh
+sync_requirements.sh
+README.md
+DEPLOYMENT_SUCCESS.md
+QUICK_DEPLOY.md

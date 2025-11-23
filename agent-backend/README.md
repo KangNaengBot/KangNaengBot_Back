@@ -172,6 +172,47 @@ agent-backend/
 | `GOOGLE_CLOUD_PROJECT` | GCP 프로젝트 ID | `kangnam-backend` |
 | `VERTEX_AI_LOCATION` | Vertex AI 리전 | `us-east4` |
 
+## 📦 Requirements 관리
+
+### 왜 두 개의 requirements.txt가 있나요?
+
+프로젝트에는 **2개의 독립적인 배포 대상**이 있습니다:
+
+1. **프로젝트 루트** (`../requirements.txt`)
+   - **용도**: Agent Engine 배포 (Vertex AI)
+   - **포함**: 전체 애플리케이션 패키지 (supabase, beautifulsoup4, google-genai 등)
+
+2. **agent-backend** (`./requirements.txt`)
+   - **용도**: FastAPI 백엔드 API (Cloud Run)
+   - **포함**: 백엔드 API에 필요한 패키지만
+   - **이유**: Cloud Run Buildpack이 이 디렉토리만 보고 빌드
+
+### 패키지 추가 방법
+
+1. **루트 requirements.txt 수정**
+   ```bash
+   cd ..  # 프로젝트 루트로 이동
+   nano requirements.txt  # 패키지 추가
+   ```
+
+2. **백엔드 requirements 동기화** (필요시)
+   ```bash
+   cd agent-backend
+   ./sync_requirements.sh  # 백엔드용으로 동기화
+   ```
+
+3. **설치**
+   ```bash
+   source ../.venv/bin/activate
+   uv pip install -r requirements.txt
+   ```
+
+### ⚠️ 중요: psycopg 사용
+
+이 백엔드는 PostgreSQL 비동기 연결을 위해 **psycopg3**를 사용합니다:
+- ✅ 사용: `psycopg[binary,pool]==3.2.1`
+- ❌ 사용 안 함: `psycopg2-binary`
+
 ## 🐛 트러블슈팅
 
 ### "Missing required environment variables"

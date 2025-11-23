@@ -1,12 +1,30 @@
+# FastAPI 및 서버
 fastapi==0.119.1
 uvicorn[standard]==0.38.0
 pydantic==2.12.3
-google-cloud-aiplatform==1.122.0
-vertexai==1.43.0
-google-adk==1.16.0
+
+# Google Cloud & Vertex AI
+google-cloud-aiplatform
+vertexai
+google-adk
+google-genai
+
+# 환경 변수
 python-dotenv==1.1.1
-google-genai==1.46.0
+
+# OAuth & JWT (agent-backend용)
+Authlib>=1.5.1
+httpx>=0.28.1
+PyJWT==2.10.1
+itsdangerous==2.1.2
+
+# Database
+sqlalchemy==2.0.28
+psycopg[binary,pool]==3.2.1
+
+# 기타
 supabase==2.24.0
 beautifulsoup4==4.12.3
-sqlalchemy==2.0.28
-psycopg2-binary==2.9.9
+
+# 배포 스크립트
+absl-py==2.1.0

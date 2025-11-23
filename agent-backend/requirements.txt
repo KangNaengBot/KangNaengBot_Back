@@ -1,7 +1,7 @@
 # FastAPI 및 서버
-fastapi==0.119.1
-uvicorn[standard]==0.38.0
-pydantic==2.12.3
+fastapi>=0.100.0
+uvicorn[standard]
+pydantic>=2.0.0
 
 # Google Cloud & Vertex AI (프로젝트 루트와 동일 버전)
 google-cloud-aiplatform==1.122.0
@@ -14,9 +14,13 @@ python-dotenv==1.1.1
 # OAuth & JWT
 Authlib>=1.5.1
 httpx>=0.28.1
-PyJWT==2.9.0
-itsdangerous==2.1.2
+PyJWT>=2.8.0
+itsdangerous>=2.1.2
 
 # Database
-sqlalchemy==2.0.28
-psycopg[binary,pool]==3.2.1
+sqlalchemy>=2.0.0
+psycopg[binary]
+supabase==2.24.0
+
+# 기타
+beautifulsoup4==4.12.3

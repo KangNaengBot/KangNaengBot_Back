@@ -13,7 +13,7 @@ router = APIRouter()
 
 class CreateSessionResponse(BaseModel):
     """세션 생성 응답"""
-    sid: str
+    session_id: str
     user_id: int
     title: str
     created_at: Optional[str] = None
@@ -31,7 +31,7 @@ async def create_session(
         Authorization: Bearer {access_token}
     
     Returns:
-        sid: 세션 UUID
+        session_id: 세션 UUID
         user_id: 사용자 ID
         title: "새로운 대화" (첫 메시지 전송 시 자동 업데이트)
         created_at: 생성 시각
@@ -47,7 +47,7 @@ async def create_session(
         session = await session_service.create_session(user_id=user_id)
         
         return CreateSessionResponse(
-            sid=str(session.sid),
+            session_id=str(session.sid),
             user_id=user_id,
             title=session.title,  # "새로운 대화"
             created_at=session.created_at.isoformat() if session.created_at else None
