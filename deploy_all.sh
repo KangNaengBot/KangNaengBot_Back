@@ -182,17 +182,13 @@ if [ "$DEPLOY_BACKEND" = true ]; then
     echo "   $AGENT_ID"
     echo ""
     
-    # agent-backend 디렉토리로 이동
-    cd agent-backend
-    
-    # deploy_backend.sh 실행
-    if [ ! -f "./deploy_backend.sh" ]; then
-        echo -e "${RED}에러: deploy_backend.sh 파일을 찾을 수 없습니다.${NC}"
-        cd ..
+    # deploy_backend.sh 실행 (루트에서 실행되도록 스크립트 내부에서 처리됨)
+    if [ ! -f "./agent-backend/deploy_backend.sh" ]; then
+        echo -e "${RED}에러: agent-backend/deploy_backend.sh 파일을 찾을 수 없습니다.${NC}"
         exit 1
     fi
     
-    chmod +x ./deploy_backend.sh
+    chmod +x ./agent-backend/deploy_backend.sh
     
     echo -e "${YELLOW}📋 배포 로그 (실시간):${NC}"
     echo -e "${BLUE}┌─────────────────────────────────────────────────────┐${NC}"
@@ -201,7 +197,7 @@ if [ "$DEPLOY_BACKEND" = true ]; then
     BACKEND_LOG=$(mktemp)
     
     # deploy_backend.sh 실행 (출력을 파일과 화면에 동시 표시)
-    if ./deploy_backend.sh 2>&1 | tee "$BACKEND_LOG" | while IFS= read -r line; do
+    if ./agent-backend/deploy_backend.sh 2>&1 | tee "$BACKEND_LOG" | while IFS= read -r line; do
         # 중요한 메시지는 강조
         if echo "$line" | grep -qE "(배포|완료|실패|에러|Service URL|Cloud Run|Building|Deploying|═)"; then
             echo -e "${YELLOW}│${NC} $line"
@@ -218,8 +214,6 @@ if [ "$DEPLOY_BACKEND" = true ]; then
     
     # 로그 파일 정리
     rm -f "$BACKEND_LOG"
-    
-    cd ..
     
     if [ $BACKEND_STATUS -ne 0 ]; then
         echo ""

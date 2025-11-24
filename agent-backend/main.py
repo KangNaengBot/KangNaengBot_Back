@@ -9,6 +9,13 @@ FastAPI 백엔드 - Agent Engine과 연동
 # if sys.platform.startswith("win"):
 #     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
+import sys
+import os
+
+# 현재 디렉토리(agent-backend)를 sys.path에 추가하여
+# routers, utils 등을 절대 경로로 import 할 수 있게 함
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer
