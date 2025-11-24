@@ -1,0 +1,26 @@
+[project]
+name = "gangnangbot"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "absl-py==2.1.0",
+    "authlib>=1.5.1",
+    "beautifulsoup4==4.12.3",
+    "fastapi==0.119.1",
+    "google-adk>=1.18.0",
+    "google-cloud-aiplatform>=1.128.0",
+    "google-cloud-secret-manager>=2.25.0",
+    "google-genai>=1.52.0",
+    "httpx>=0.28.1",
+    "itsdangerous==2.1.2",
+    "psycopg[binary,pool]==3.2.1",
+    "pydantic==2.12.3",
+    "pyjwt==2.10.1",
+    "python-dotenv==1.1.1",
+    "sqlalchemy==2.0.28",
+    "supabase==2.24.0",
+    "uvicorn[standard]==0.38.0",
+    "vertexai>=1.43.0",
+]
