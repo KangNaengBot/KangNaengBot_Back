@@ -305,8 +305,28 @@ def get_chat_service() -> ChatService:
     
     if _chat_service_instance is None:
         from supabase import create_client
+        from urllib.parse import urlparse
         
-        supabase = create_client(config.SUPABASE_URL, config.SUPABASE_KEY)
+        # DATABASE_URL에서 Supabase URL 추출
+        db_url = config.DATABASE_URL
+        if not db_url:
+            raise ValueError("DATABASE_URL is not configured")
+        
+        parsed = urlparse(db_url)
+        username = parsed.username
+        
+        if username and '.' in username:
+            project_ref = username.split('.', 1)[1]
+            supabase_url = f"https://{project_ref}.supabase.co"
+        else:
+            raise ValueError("Invalid DATABASE_URL format: cannot extract project_ref")
+        
+        # API 키는 config에서 가져오기
+        supabase_key = config.SUPABASE_KEY
+        if not supabase_key:
+            raise ValueError("SUPABASE_KEY (DATABASE_KEY) is not configured")
+        
+        supabase = create_client(supabase_url, supabase_key)
         message_repo = ChatMessageRepository(supabase)
         session_repo = ChatSessionRepository(supabase)
         profile_repo = ProfileRepository(supabase)
@@ -318,3 +338,4 @@ def get_chat_service() -> ChatService:
         )
     
     return _chat_service_instance
+

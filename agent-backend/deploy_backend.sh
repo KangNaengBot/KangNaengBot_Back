@@ -23,26 +23,24 @@ cd "$PROJECT_ROOT"
 
 echo -e "${YELLOW}[1/5]${NC} 프로젝트 루트로 이동: $(pwd)"
 
-# 2. 환경 변수 로드
-if [ -f .env ]; then
-    echo -e "${YELLOW}[2/5]${NC} .env 파일에서 환경 변수 로드 중..."
-    set -a
-    source .env
-    set +a
-    echo "  ✓ .env 파일 로드 완료"
-else
-    echo -e "${RED}에러: .env 파일을 찾을 수 없습니다.${NC}"
-    exit 1
-fi
+# 2. Google Cloud 설정
+PROJECT_ID="kangnam-backend"
 
-# 3. 필수 환경 변수 확인
-echo -e "${YELLOW}[3/5]${NC} 환경 변수 확인 중..."
+# 3. Secret Manager에서 AGENT_RESOURCE_ID 로드
+echo -e "${YELLOW}[2/5]${NC} Secret Manager에서 설정 로드 중..."
+AGENT_RESOURCE_ID=$(gcloud secrets versions access latest --secret=AGENT_RESOURCE_ID --project=$PROJECT_ID 2>/dev/null)
+
 if [ -z "$AGENT_RESOURCE_ID" ]; then
-    echo -e "${RED}에러: AGENT_RESOURCE_ID가 설정되지 않았습니다.${NC}"
+    echo -e "${RED}에러: Secret Manager에 AGENT_RESOURCE_ID가 없습니다.${NC}"
+    echo "먼저 Agent Engine을 배포하세요:"
+    echo "  sh update_deployment.sh"
     exit 1
 fi
 
 echo "  ✓ AGENT_RESOURCE_ID: $AGENT_RESOURCE_ID"
+
+# 4. 환경 변수 확인
+echo -e "${YELLOW}[3/5]${NC} 환경 변수 확인 중..."
 echo "  ✓ GOOGLE_CLOUD_PROJECT: ${GOOGLE_CLOUD_PROJECT:-kangnam-backend}"
 echo "  ✓ VERTEX_AI_LOCATION: ${VERTEX_AI_LOCATION:-us-east4}"
 
@@ -68,7 +66,8 @@ gcloud run deploy "$SERVICE_NAME" \
   --region="$REGION" \
   --project="$PROJECT" \
   --allow-unauthenticated \
-  --set-env-vars="AGENT_RESOURCE_ID=$AGENT_RESOURCE_ID,GOOGLE_CLOUD_PROJECT=$PROJECT,VERTEX_AI_LOCATION=$REGION,DATABASE_URL=$DATABASE_URL,JWT_SECRET_KEY=$JWT_SECRET_KEY,SUPABASE_URL=$SUPABASE_URL,SUPABASE_KEY=$SUPABASE_KEY,GOOGLE_CLIENT_ID=$GOOGLE_CLIENT_ID,GOOGLE_CLIENT_SECRET=$GOOGLE_CLIENT_SECRET" \
+  --update-secrets="AGENT_RESOURCE_ID=AGENT_RESOURCE_ID:latest,DATABASE_URL=DATABASE_URL:latest,DATABASE_KEY=DATABASE_KEY:latest,JWT_SECRET_KEY=JWT_SECRET_KEY:latest,GOOGLE_CLIENT_SECRET=GOOGLE_CLIENT_SECRET:latest" \
+  --set-env-vars="GOOGLE_CLOUD_PROJECT=$PROJECT,VERTEX_AI_LOCATION=$REGION" \
   --min-instances=0 \
   --max-instances=10 \
   --timeout=300 \

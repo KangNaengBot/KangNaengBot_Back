@@ -163,18 +163,16 @@ if [ "$DEPLOY_BACKEND" = true ]; then
     echo -e "${BLUE}⏰ 시작 시간: $(date '+%Y-%m-%d %H:%M:%S')${NC}"
     echo ""
     
-    # .env 파일 확인
-    if [ ! -f ".env" ]; then
-        echo -e "${RED}에러: .env 파일을 찾을 수 없습니다.${NC}"
-        echo "먼저 Agent Engine을 배포하거나 .env 파일을 생성하세요."
-        exit 1
-    fi
+    # Google Cloud 설정
+    PROJECT_ID="kangnam-backend"
     
-    # AGENT_RESOURCE_ID 확인
-    AGENT_ID=$(grep "^AGENT_RESOURCE_ID=" .env | cut -d '=' -f2)
+    # Secret Manager에서 AGENT_RESOURCE_ID 확인
+    AGENT_ID=$(gcloud secrets versions access latest --secret=AGENT_RESOURCE_ID --project=$PROJECT_ID 2>/dev/null)
+    
     if [ -z "$AGENT_ID" ]; then
-        echo -e "${RED}에러: .env 파일에 AGENT_RESOURCE_ID가 없습니다.${NC}"
-        echo "먼저 Agent Engine을 배포하세요."
+        echo -e "${RED}에러: Secret Manager에 AGENT_RESOURCE_ID가 없습니다.${NC}"
+        echo "먼저 Agent Engine을 배포하세요:"
+        echo "  sh update_deployment.sh"
         exit 1
     fi
     

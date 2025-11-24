@@ -7,8 +7,11 @@ set -o pipefail # 파이프라인에서도 에러 감지
 echo "🔄 Agent 업데이트 시작..."
 echo ""
 
-# 현재 배포된 Resource ID 읽기
-CURRENT_ID=$(grep "AGENT_RESOURCE_ID=" .env 2>/dev/null | cut -d '=' -f2)
+# Google Cloud 설정
+PROJECT_ID="kangnam-backend"
+
+# 현재 배포된 Resource ID 읽기 (Secret Manager에서)
+CURRENT_ID=$(gcloud secrets versions access latest --secret=AGENT_RESOURCE_ID --project=$PROJECT_ID 2>/dev/null || echo "")
 
 # 파이썬 명령어 설정 (가상환경 우선)
 if [ -f ".venv/bin/python" ]; then
@@ -18,7 +21,7 @@ else
 fi
 
 if [ -z "$CURRENT_ID" ]; then
-    echo "⚠️  .env 파일에 AGENT_RESOURCE_ID가 없습니다."
+    echo "⚠️  Secret Manager에 AGENT_RESOURCE_ID가 없습니다."
     echo "   초기 배포를 실행합니다..."
     echo ""
     
@@ -44,12 +47,16 @@ if [ -z "$CURRENT_ID" ]; then
     echo ""
     echo "✅ 배포 완료: $INITIAL_RESOURCE_ID"
     echo ""
-    echo "📝 .env 파일에 자동 등록 중..."
+    echo "📝 Secret Manager에 자동 등록 중..."
     
-    # .env 파일에 추가
-    echo "AGENT_RESOURCE_ID=$INITIAL_RESOURCE_ID" >> .env
+    # Secret Manager에 저장 (없으면 생성, 있으면 새 버전 추가)
+    if gcloud secrets describe AGENT_RESOURCE_ID --project=$PROJECT_ID &>/dev/null; then
+        echo "$INITIAL_RESOURCE_ID" | gcloud secrets versions add AGENT_RESOURCE_ID --data-file=- --project=$PROJECT_ID
+    else
+        echo "$INITIAL_RESOURCE_ID" | gcloud secrets create AGENT_RESOURCE_ID --data-file=- --project=$PROJECT_ID
+    fi
     
-    echo "✅ .env 파일 업데이트 완료!"
+    echo "✅ Secret Manager 업데이트 완료!"
     echo ""
     echo "=" | tr '=' '=' | head -c 70
     echo ""
@@ -146,19 +153,14 @@ else
 fi
 
 echo ""
-echo "🔄 환경변수 업데이트 중..."
+echo "🔄 Secret Manager 업데이트 중..."
 
-# .env 파일 백업
-cp .env .env.backup
+# 이전 버전을 백업 시크릿에 저장
+echo "$CURRENT_ID" | gcloud secrets versions add AGENT_RESOURCE_ID_BACKUP --data-file=- --project=$PROJECT_ID 2>/dev/null || \
+    echo "$CURRENT_ID" | gcloud secrets create AGENT_RESOURCE_ID_BACKUP --data-file=- --project=$PROJECT_ID
 
-# .env 파일을 안전하게 업데이트 (grep으로 다른 줄 유지, 새 값 추가)
-{
-    grep -v "^AGENT_RESOURCE_ID=" .env | grep -v "^AGENT_RESOURCE_ID_BACKUP="
-    echo "AGENT_RESOURCE_ID=$NEW_RESOURCE_ID"
-    echo "AGENT_RESOURCE_ID_BACKUP=$CURRENT_ID"
-} > .env.tmp
-
-mv .env.tmp .env
+# 새 버전을 메인 시크릿에 저장
+echo "$NEW_RESOURCE_ID" | gcloud secrets versions add AGENT_RESOURCE_ID --data-file=- --project=$PROJECT_ID
 
 echo ""
 echo "=" | tr '=' '=' | head -c 70
@@ -172,8 +174,11 @@ echo ""
 echo "⚠️  프로덕션 환경에 적용하기 전에 충분히 테스트하세요!"
 echo ""
 echo "🔙 롤백이 필요하면:"
-echo "   $PYTHON_CMD deploy.py --delete --resource_id=\"$NEW_RESOURCE_ID\""
-echo "   (그리고 .env 파일을 .env.backup에서 복구)"
+echo "   1. 새 버전 삭제:"
+echo "      $PYTHON_CMD deploy.py --delete --resource_id=\"$NEW_RESOURCE_ID\""
+echo ""
+echo "   2. 이전 버전으로 복구:"
+echo "      echo '$CURRENT_ID' | gcloud secrets versions add AGENT_RESOURCE_ID --data-file=- --project=$PROJECT_ID"
 echo ""
 echo "✅ 문제없으면 이전 버전 삭제:"
 echo "   $PYTHON_CMD deploy.py --delete --resource_id=\"$CURRENT_ID\""

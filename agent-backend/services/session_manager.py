@@ -19,12 +19,33 @@ class SessionManager:
     
     def __init__(self):
         """Agent Engine 및 Supabase 초기화"""
+        from urllib.parse import urlparse
+        
         self.engine = agent_engines.get(config.AGENT_RESOURCE_ID)
         # 로컬 세션 캐시 (sid -> {id, vertex_session_id})
         self._local_session_map: Dict[str, Dict[str, Any]] = {}
         
+        # DATABASE_URL에서 Supabase URL 추출
+        db_url = config.DATABASE_URL
+        if not db_url:
+            raise ValueError("DATABASE_URL is not configured")
+        
+        parsed = urlparse(db_url)
+        username = parsed.username
+        
+        if username and '.' in username:
+            project_ref = username.split('.', 1)[1]
+            supabase_url = f"https://{project_ref}.supabase.co"
+        else:
+            raise ValueError("Invalid DATABASE_URL format: cannot extract project_ref")
+        
+        # API 키는 config에서 가져오기
+        supabase_key = config.SUPABASE_KEY
+        if not supabase_key:
+            raise ValueError("SUPABASE_KEY (DATABASE_KEY) is not configured")
+        
         # Supabase 클라이언트 초기화
-        self.supabase: Client = create_client(config.SUPABASE_URL, config.SUPABASE_KEY)
+        self.supabase: Client = create_client(supabase_url, supabase_key)
 
     def create_session(self, user_id: int) -> str:
         """

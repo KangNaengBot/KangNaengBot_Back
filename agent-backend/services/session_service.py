@@ -139,8 +139,31 @@ def get_session_service() -> SessionService:
     
     if _session_service_instance is None:
         from supabase import create_client
-        supabase = create_client(config.SUPABASE_URL, config.SUPABASE_KEY)
+        from urllib.parse import urlparse
+        
+        # DATABASE_URL에서 Supabase URL 추출
+        # 형식: postgresql://postgres.{project_ref}:{password}@aws-0-{region}.pooler.supabase.com:6543/postgres
+        db_url = config.DATABASE_URL
+        if not db_url:
+            raise ValueError("DATABASE_URL is not configured")
+        
+        parsed = urlparse(db_url)
+        username = parsed.username  # postgres.{project_ref}
+        
+        if username and '.' in username:
+            project_ref = username.split('.', 1)[1]
+            supabase_url = f"https://{project_ref}.supabase.co"
+        else:
+            raise ValueError("Invalid DATABASE_URL format: cannot extract project_ref")
+        
+        # API 키는 config에서 가져오기 (Cloud Run 환경 변수 또는 Secret Manager)
+        supabase_key = config.SUPABASE_KEY
+        if not supabase_key:
+            raise ValueError("SUPABASE_KEY (DATABASE_KEY) is not configured")
+        
+        supabase = create_client(supabase_url, supabase_key)
         session_repo = ChatSessionRepository(supabase)
         _session_service_instance = SessionService(session_repo)
     
     return _session_service_instance
+

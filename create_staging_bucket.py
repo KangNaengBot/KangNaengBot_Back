@@ -6,10 +6,7 @@ Agent Engine 배포를 위한 staging bucket을 us-east4 리전에 생성합니�
 
 import subprocess
 import sys
-from dotenv import load_dotenv
 import os
-
-load_dotenv()
 
 PROJECT_ID = os.getenv("GOOGLE_CLOUD_PROJECT", "kangnam-backend")
 BUCKET_NAME = f"{PROJECT_ID}-agent-staging"
@@ -46,7 +43,7 @@ def create_bucket():
     if check_bucket_exists():
         print(f"✅ Bucket gs://{BUCKET_NAME} already exists!")
         print()
-        print("📝 Add this to your .env file:")
+        print("📝 Set environment variable:")
         print(f"GOOGLE_CLOUD_STAGING_BUCKET=gs://{BUCKET_NAME}")
         return True
     
@@ -59,11 +56,11 @@ def create_bucket():
     if success:
         print(f"✅ Successfully created: gs://{BUCKET_NAME}")
         print()
-        print("📝 Add this to your .env file:")
-        print(f"GOOGLE_CLOUD_STAGING_BUCKET=gs://{BUCKET_NAME}")
+        print("📝 Set environment variable:")
+        print(f"export GOOGLE_CLOUD_STAGING_BUCKET=gs://{BUCKET_NAME}")
         print()
         print("💡 Next steps:")
-        print(f"   1. Add the line above to your .env file")
+        print(f"   1. Set the environment variable above")
         print(f"   2. Run: python deploy.py --create")
         return True
     else:

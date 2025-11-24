@@ -8,10 +8,10 @@ import os
 import sys
 import vertexai
 from absl import app, flags
-from dotenv import load_dotenv
 from vertexai import agent_engines
 from vertexai.preview import reasoning_engines
 from google_adk.agent import root_agent
+from google_adk.config.secrets import get_secret
 
 FLAGS = flags.FLAGS
 
@@ -80,7 +80,6 @@ def create() -> None:
             "google-cloud-aiplatform[adk,agent_engines]",
             "requests",
             "beautifulsoup4",
-            "python-dotenv",
         ],
         extra_packages=["./google_adk"],
     )
@@ -201,21 +200,20 @@ def main(argv=None):
     else:
         argv = flags.FLAGS(argv)
     
-    load_dotenv()
-    
-    project_id = FLAGS.project_id if FLAGS.project_id else os.getenv("GOOGLE_CLOUD_PROJECT")
-    location = FLAGS.location if FLAGS.location else os.getenv("VERTEX_AI_LOCATION")
+    # Secret Manager에서 설정 가져오기
+    project_id = FLAGS.project_id if FLAGS.project_id else os.getenv("GOOGLE_CLOUD_PROJECT", "kangnam-backend")
+    location = FLAGS.location if FLAGS.location else os.getenv("VERTEX_AI_LOCATION", "us-east4")
     bucket = FLAGS.bucket if FLAGS.bucket else os.getenv("GOOGLE_CLOUD_STAGING_BUCKET")
     user_id = FLAGS.user_id
     
     if not project_id:
         print("❌ Missing: GOOGLE_CLOUD_PROJECT")
-        print("   Set via --project_id or .env file")
+        print("   Set via --project_id or environment variable")
         return
     
     if not location:
         print("❌ Missing: VERTEX_AI_LOCATION")
-        print("   Set via --location or .env file")
+        print("   Set via --location or environment variable")
         return
     
     if not bucket:
