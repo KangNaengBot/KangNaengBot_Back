@@ -14,12 +14,15 @@ from dotenv import load_dotenv
 # but included for safety when importing config directly)
 load_dotenv()
 
-# Project and location settings
-PROJECT_ID = os.environ.get("GOOGLE_CLOUD_PROJECT", "kangnam-backend")  # ✅ 프로젝트 이름
+from .secrets import get_secret
+
+# Project and location settings (하드코딩)
+PROJECT_ID = os.environ.get("GOOGLE_CLOUD_PROJECT", "kangnam-backend")
+GOOGLE_API_KEY = get_secret("GOOGLE_API_KEY")  # Secret Manager
 
 # Vertex AI location (RAG Engine, Embeddings, LLM)
 # Note: Vertex AI RAG Engine is only available in limited regions
-VERTEX_AI_LOCATION = os.environ.get("VERTEX_AI_LOCATION", "us-east4")  # ✅ us-east4로 변경!
+VERTEX_AI_LOCATION = os.environ.get("VERTEX_AI_LOCATION", "us-east4")
 LOCATION = VERTEX_AI_LOCATION  # Alias for backward compatibility
 
 # GCS Bucket settings (can be in different region from Vertex AI)
@@ -27,7 +30,7 @@ GCS_BUCKET_NAME = os.environ.get("GCS_BUCKET_NAME", "kangnam-univ")  # RAG docum
 GCS_BUCKET_LOCATION = os.environ.get("GCS_BUCKET_LOCATION", "asia-northeast3")  # Seoul region
 
 # RAG Corpus settings - 강남대 코퍼스
-KANGNAM_CORPUS_ID = os.environ.get("KANGNAM_CORPUS_ID", "6917529027641081856")  # ✅ 코퍼스 ID
+KANGNAM_CORPUS_ID = os.environ.get("KANGNAM_CORPUS_ID", "6917529027641081856")
 KANGNAM_CORPUS_NAME = "kangnamUniv"
 
 # RAG configuration defaults
