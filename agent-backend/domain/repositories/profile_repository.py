@@ -22,24 +22,26 @@ class ProfileRepository(Repository[Profile]):
     def find_by_user_id(self, user_id: int) -> Optional[Profile]:
         """사용자 ID로 프로필 조회"""
         try:
+            # single()은 결과가 2개 이상이면 에러가 발생하므로
+            # limit(1)을 사용하여 중복이 있어도 최신 1개만 가져오도록 수정
             result = self.db.table("profiles") \
                 .select("*") \
                 .eq("user_id", user_id) \
-                .single() \
+                .order("updated_at", desc=True) \
+                .limit(1) \
                 .execute()
             
-            if result.data:
-                return self._to_entity(result.data)
+            if result.data and len(result.data) > 0:
+                return self._to_entity(result.data[0])
             return None
         except Exception as e:
-            # 데이터가 없는 경우도 에러로 처리될 수 있음 (Supabase 특성)
-            # print(f"[ProfileRepository] Error finding profile by user_id: {e}")
+            print(f"[ProfileRepository] Error finding profile by user_id: {e}")
             return None
     
     def save(self, profile: Profile) -> Profile:
         """프로필 저장 (Insert or Update)"""
         try:
-            # 기존 프로필 확인
+            # 기존 프로필 확인 (수정된 로직으로 최신 프로필 조회)
             existing = self.find_by_user_id(profile.user_id)
             
             data = {
@@ -50,14 +52,15 @@ class ProfileRepository(Repository[Profile]):
                 "department": profile.department,
                 "major": profile.major,
                 "current_grade": profile.current_grade,
-                "current_semester": profile.current_semester
+                "current_semester": profile.current_semester,
+                "updated_at": datetime.now().isoformat()
             }
             
             if existing:
-                # 업데이트
+                # 업데이트 - 기존 ID 사용
                 result = self.db.table("profiles") \
                     .update(data) \
-                    .eq("user_id", profile.user_id) \
+                    .eq("id", existing.id) \
                     .execute()
                 
                 if result.data:
