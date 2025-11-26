@@ -53,13 +53,15 @@ async def get_current_user(
     현재 로그인된 사용자의 전체 정보를 DB에서 조회
     
     Returns:
-        사용자 정보 딕셔너리 (id는 정수형)
+        사용자 정보 딕셔너리
+        - id: 내부 BIGINT ID (서비스/레포지토리에서 사용)
+        - sid: UUID (프론트엔드 노출용)
     """
     # DB에는 문자열로 전달
     user = await get_user_by_id(db, str(user_id))
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
-    # id를 정수로 변환
+    # 내부 ID는 정수로 유지 (DB 조회용)
     user["id"] = int(user["id"])
     return user

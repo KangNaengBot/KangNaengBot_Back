@@ -25,7 +25,7 @@ async def get_me(
         Authorization: Bearer {access_token}
     
     Returns:
-        사용자 정보 (id, email, name 등)
+        사용자 정보 (id: UUID, email, name 등)
     """
     # JWT 검증
     token = credentials.credentials
@@ -43,4 +43,11 @@ async def get_me(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
-    return user
+    # 프론트엔드용 응답: sid를 id로 변경 (UUID 형식)
+    return {
+        "id": user["sid"],  # UUID (프론트엔드에서 사용)
+        "email": user["email"],
+        "name": user["name"],
+        "created_at": user["created_at"],
+        "updated_at": user["updated_at"]
+    }

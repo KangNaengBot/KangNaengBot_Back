@@ -4,25 +4,22 @@ POST /profiles - 프로필 저장
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel, Field
 from typing import Optional
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import text
 
-from routers.database import get_db
-import config
+from utils.dependencies import get_current_user
+from services.profile_service import ProfileService, get_profile_service
 
 router = APIRouter()
 
 
 class ProfileRequest(BaseModel):
-    """프로필 저장 요청"""
-    user_id: int = Field(..., description="users 테이블의 id")
-    profile_name: str = Field(..., description="프로필 이름")
-    student_id: str = Field(..., description="학번")
-    college: str = Field(..., description="단과대학 정보")
-    department: str = Field(..., description="학부/학과")
-    major: str = Field(..., description="전공 정보")
-    current_grade: int = Field(..., description="현재 학년")
-    current_semester: int = Field(..., description="현재 학기")
+    """프로필 저장/수정 요청 (부분 업데이트 가능)"""
+    profile_name: Optional[str] = Field(None, description="프로필 이름")
+    student_id: Optional[str] = Field(None, description="학번")
+    college: Optional[str] = Field(None, description="단과대학 정보")
+    department: Optional[str] = Field(None, description="학부/학과")
+    major: Optional[str] = Field(None, description="전공 정보")
+    current_grade: Optional[int] = Field(None, ge=1, le=5, description="현재 학년 (1-5)")
+    current_semester: Optional[int] = Field(None, ge=1, le=2, description="현재 학기 (1-2)")
 
 
 class ProfileResponse(BaseModel):
@@ -43,107 +40,70 @@ class ProfileResponse(BaseModel):
 @router.post("/", response_model=ProfileResponse)
 async def save_profile(
     profile_data: ProfileRequest,
-    db: AsyncSession = Depends(get_db)
+    current_user: dict = Depends(get_current_user),
+    profile_service: ProfileService = Depends(get_profile_service)
 ):
     """
-    프로필 정보를 Supabase의 profiles 테이블에 저장합니다.
+    프로필 정보를 저장/수정합니다.
     
-    user_id를 기준으로 기존 프로필이 있으면 업데이트하고, 없으면 새로 생성합니다.
+    JWT 토큰에서 user_id를 자동으로 추출하여 사용합니다.
     
-    Request Body:
-        user_id: 사용자 ID (bigint)
-        profile_name: 프로필 이름 (varchar(255))
-        student_id: 학번 (varchar(255))
-        college: 단과대학 정보 (varchar(255))
-        department: 학부/학과 (varchar(255))
-        major: 전공 정보 (varchar(255))
-        current_grade: 현재 학년 (integer)
-        current_semester: 현재 학기 (integer)
+    **신규 생성**: 모든 필드 필수
+    **기존 수정**: 변경하고 싶은 필드만 보내면 됩니다 (부분 업데이트)
+    
+    Headers:
+        Authorization: Bearer {access_token}
+    
+    Request Body (모두 선택):
+        profile_name: 프로필 이름
+        student_id: 학번
+        college: 단과대학 정보
+        department: 학부/학과
+        major: 전공 정보
+        current_grade: 현재 학년 (1-5)
+        current_semester: 현재 학기 (1-2)
+    
+    Examples:
+        # 전체 생성
+        {
+          "profile_name": "홍길동",
+          "student_id": "20210001",
+          "college": "공과대학",
+          "department": "컴퓨터공학부",
+          "major": "소프트웨어전공",
+          "current_grade": 4,
+          "current_semester": 2
+        }
+        
+        # 이름만 수정
+        {
+          "profile_name": "새이름"
+        }
+        
+        # 학년/학기만 수정
+        {
+          "current_grade": 4,
+          "current_semester": 1
+        }
     
     Returns:
         저장된 프로필 정보
     """
     try:
-        # user_id로 기존 프로필 확인
-        check_query = text("""
-            SELECT id, user_id, profile_name, student_id, college, department, 
-                   major, current_grade, current_semester, created_at, updated_at
-            FROM profiles
-            WHERE user_id = :user_id
-            LIMIT 1
-        """)
+        # JWT에서 user_id 추출
+        user_id = int(current_user["id"])
         
-        result = await db.execute(check_query, {"user_id": profile_data.user_id})
-        existing = result.fetchone()
-        
-        if existing:
-            # 기존 프로필이 있으면 업데이트
-            update_query = text("""
-                UPDATE profiles
-                SET profile_name = :profile_name,
-                    student_id = :student_id,
-                    college = :college,
-                    department = :department,
-                    major = :major,
-                    current_grade = :current_grade,
-                    current_semester = :current_semester,
-                    updated_at = NOW()
-                WHERE user_id = :user_id
-                RETURNING id, user_id, profile_name, student_id, college, department,
-                          major, current_grade, current_semester, created_at, updated_at
-            """)
-            
-            result = await db.execute(update_query, {
-                "user_id": profile_data.user_id,
-                "profile_name": profile_data.profile_name,
-                "student_id": profile_data.student_id,
-                "college": profile_data.college,
-                "department": profile_data.department,
-                "major": profile_data.major,
-                "current_grade": profile_data.current_grade,
-                "current_semester": profile_data.current_semester,
-            })
-            await db.commit()
-            
-            updated = result.fetchone()
-            if not updated:
-                raise HTTPException(
-                    status_code=500,
-                    detail="Failed to update profile"
-                )
-            
-            profile = updated
-        else:
-            # 기존 프로필이 없으면 새로 생성
-            insert_query = text("""
-                INSERT INTO profiles (user_id, profile_name, student_id, college, 
-                                     department, major, current_grade, current_semester)
-                VALUES (:user_id, :profile_name, :student_id, :college, 
-                        :department, :major, :current_grade, :current_semester)
-                RETURNING id, user_id, profile_name, student_id, college, department,
-                          major, current_grade, current_semester, created_at, updated_at
-            """)
-            
-            result = await db.execute(insert_query, {
-                "user_id": profile_data.user_id,
-                "profile_name": profile_data.profile_name,
-                "student_id": profile_data.student_id,
-                "college": profile_data.college,
-                "department": profile_data.department,
-                "major": profile_data.major,
-                "current_grade": profile_data.current_grade,
-                "current_semester": profile_data.current_semester,
-            })
-            await db.commit()
-            
-            created = result.fetchone()
-            if not created:
-                raise HTTPException(
-                    status_code=500,
-                    detail="Failed to create profile"
-                )
-            
-            profile = created
+        # 서비스를 통해 프로필 저장 (부분 업데이트 지원)
+        profile = profile_service.save_profile(
+            user_id=user_id,
+            profile_name=profile_data.profile_name,
+            student_id=profile_data.student_id,
+            college=profile_data.college,
+            department=profile_data.department,
+            major=profile_data.major,
+            current_grade=profile_data.current_grade,
+            current_semester=profile_data.current_semester
+        )
         
         # 응답 반환
         return ProfileResponse(
@@ -160,10 +120,9 @@ async def save_profile(
             updated_at=profile.updated_at.isoformat() if profile.updated_at else None
         )
         
-    except HTTPException:
-        raise
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        await db.rollback()
         raise HTTPException(
             status_code=500,
             detail=f"Failed to save profile: {str(e)}"

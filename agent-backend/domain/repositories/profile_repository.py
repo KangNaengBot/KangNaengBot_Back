@@ -39,6 +39,9 @@ class ProfileRepository(Repository[Profile]):
     def save(self, profile: Profile) -> Profile:
         """프로필 저장 (Insert or Update)"""
         try:
+            # 기존 프로필 확인
+            existing = self.find_by_user_id(profile.user_id)
+            
             data = {
                 "user_id": profile.user_id,
                 "profile_name": profile.profile_name,
@@ -50,14 +53,24 @@ class ProfileRepository(Repository[Profile]):
                 "current_semester": profile.current_semester
             }
             
-            # upsert 사용 (user_id가 unique constraint여야 함)
-            result = self.db.table("profiles") \
-                .upsert(data, on_conflict="user_id") \
-                .select("*") \
-                .execute()
+            if existing:
+                # 업데이트
+                result = self.db.table("profiles") \
+                    .update(data) \
+                    .eq("user_id", profile.user_id) \
+                    .execute()
+                
+                if result.data:
+                    return self._to_entity(result.data[0])
+            else:
+                # 신규 생성
+                result = self.db.table("profiles") \
+                    .insert(data) \
+                    .execute()
+                
+                if result.data:
+                    return self._to_entity(result.data[0])
             
-            if result.data:
-                return self._to_entity(result.data[0])
             raise Exception("Failed to save profile")
             
         except Exception as e:

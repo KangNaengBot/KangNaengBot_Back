@@ -3,9 +3,11 @@
 """
 from fastapi import APIRouter
 from .save_profile import router as save_profile_router
+from .get_profile import router as get_profile_router
 
 # 메인 라우터에 서브 라우터 통합
 router = APIRouter(prefix="/profiles", tags=["profiles"])
 router.include_router(save_profile_router)
+router.include_router(get_profile_router)
 
 __all__ = ['router']

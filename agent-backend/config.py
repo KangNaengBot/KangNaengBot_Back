@@ -32,7 +32,15 @@ GOOGLE_CLIENT_ID = os.getenv(
     "88199591627-a603fsufai3053h47i66hogsbs5gb6pn.apps.googleusercontent.com"
 )
 GOOGLE_CLIENT_SECRET = get_secret("GOOGLE_CLIENT_SECRET", default=os.getenv("GOOGLE_CLIENT_SECRET"))
-OAUTH_REDIRECT_URI = os.getenv("OAUTH_REDIRECT_URI", "http://localhost:8080/auth/google/callback")
+
+# Frontend URL (백엔드가 인증 후 프론트엔드로 리다이렉트할 때 사용)
+FRONTEND_URL = os.getenv("FRONTEND_URL", "https://gangnangbot.vercel.app")
+
+# OAuth Redirect URI (Google이 백엔드로 콜백할 때 사용)
+OAUTH_REDIRECT_URI = os.getenv(
+    "OAUTH_REDIRECT_URI", 
+    "https://agent-backend-api-stcla4qgrq-uk.a.run.app/auth/google/callback"
+)
 
 # Supabase 설정 (Secret Manager -> 환경 변수)
 SUPABASE_URL = os.getenv("SUPABASE_URL")
