@@ -100,6 +100,8 @@ app.include_router(sessions_router)
 app.include_router(chat_router)
 app.include_router(auth_router)
 app.include_router(profiles_router)
+from routers.proxy import subject_proxy
+app.include_router(subject_proxy.router)
 app.include_router(database.router, prefix="/db", tags=["database"])
 
 # 헬스체크 (Cloud Run 필수)

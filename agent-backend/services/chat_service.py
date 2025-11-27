@@ -163,26 +163,72 @@ class ChatService:
                     user_id=str(user_id),
                     session_id=session.vertex_session_id
                 ):
-                    # event를 문자열로 변환 (확실하게)
+                    # event를 문자열로 변환
                     event_text = ""
                     
-                    if isinstance(event, str):
-                        event_text = event
-                    elif isinstance(event, dict):
-                        # dict인 경우 'content' 또는 'text' 키 찾기
-                        event_text = str(event.get('content') or event.get('text') or event)
-                    elif hasattr(event, 'content'):
-                        event_text = str(event.content)
-                    elif hasattr(event, 'text'):
-                        event_text = str(event.text)
-                    else:
-                        event_text = str(event)
+                    # 1. parts 속성/키 확인 (Vertex AI 표준 응답 구조)
+                    parts_list = None
                     
-                    # 응답 누적 (문자열로 확실히 변환 후)
-                    full_response += str(event_text)
+                    # 1-1. 객체의 parts 속성
+                    if hasattr(event, 'parts') and event.parts:
+                        parts_list = event.parts
+                    # 1-2. dict의 content.parts 구조 (실제 Vertex AI 응답)
+                    elif isinstance(event, dict) and 'content' in event and isinstance(event['content'], dict):
+                        if 'parts' in event['content']:
+                            parts_list = event['content']['parts']
+                    # 1-3. dict의 직접 parts 키
+                    elif isinstance(event, dict) and 'parts' in event:
+                        parts_list = event['parts']
+                    
+                    if parts_list:
+                        for part in parts_list:
+                            # 딕셔너리 형태의 part 처리
+                            if isinstance(part, dict):
+                                # 함수 호출/응답은 건너뛰기
+                                if 'function_call' in part or 'function_response' in part:
+                                    continue
+                                if 'text' in part:
+                                    event_text += part['text']
+                            # 객체 형태의 part 처리
+                            else:
+                                if hasattr(part, 'function_call') and part.function_call:
+                                    continue
+                                if hasattr(part, 'function_response') and part.function_response:
+                                    continue
+                                if hasattr(part, 'text') and part.text:
+                                    event_text += part.text
+                    
+                    # 2. 문자열인 경우
+                    elif isinstance(event, str):
+                        event_text = event
+                        
+                    # 3. 딕셔너리에서 직접 text/content 추출
+                    elif isinstance(event, dict):
+                        # 함수 호출/응답 데이터는 무시
+                        if 'function_call' in event or 'function_response' in event:
+                            continue
+                            
+                        # text나 content 키가 있는 경우만 추출
+                        if 'text' in event:
+                            event_text = str(event['text'])
+                        elif 'content' in event:
+                            event_text = str(event['content'])
+                        
+                    # 4. 기타 속성 확인
+                    elif hasattr(event, 'text') and event.text:
+                        event_text = str(event.text)
+                    elif hasattr(event, 'content') and event.content:
+                        event_text = str(event.content)
+                    
+                    # 텍스트가 없으면 건너뛰기
+                    if not event_text:
+                        continue
+                    
+                    # 응답 누적
+                    full_response += event_text
                     
                     # 문자 단위로 스트리밍
-                    for char in str(event_text):
+                    for char in event_text:
                         yield char
                 
                 print(f"[ChatService] Agent response complete. Total length: {len(full_response)}")
@@ -204,31 +250,31 @@ class ChatService:
                 )
                 self.message_repo.save(assistant_message)
                 
-                # 5. 메모리 생성 트리거 (비동기)
+                # 5. 메모리 생성 트리거 (비동기) - 현재 SDK 버전에서 미지원으로 주석 처리
                 # 대화가 끝난 후, 이번 턴의 내용을 Memory Bank에 보내서 기억할 내용이 있는지 분석하게 함
-                try:
-                    from vertexai.preview import reasoning_engines
-                    
-                    # 이번 턴의 대화 내용 (User + Assistant)
-                    events = [
-                        {"content": {"role": "user", "parts": [{"text": message_text}]}},
-                        {"content": {"role": "model", "parts": [{"text": full_response}]}}
-                    ]
-                    
-                    print(f"[ChatService] Triggering memory generation for user {user_id}...")
-                    
-                    # 비동기로 메모리 생성 요청 (wait_for_completion=False)
-                    reasoning_engines.ReasoningEngine.generate_memories(
-                        resource_name=self.remote_app.resource_name,
-                        direct_contents_source={"events": events},
-                        scope={"user_id": str(user_id)},
-                        config={"wait_for_completion": False}
-                    )
-                    print(f"[ChatService] ✅ Memory generation triggered (Background)")
-                    
-                except Exception as mem_error:
-                    # 메모리 생성 실패가 채팅 응답에 영향을 주면 안 됨
-                    print(f"[ChatService] ⚠️ Failed to trigger memory generation: {mem_error}")
+                # try:
+                #     from vertexai.preview import reasoning_engines
+                #     
+                #     # 이번 턴의 대화 내용 (User + Assistant)
+                #     events = [
+                #         {"content": {"role": "user", "parts": [{"text": message_text}]}},
+                #         {"content": {"role": "model", "parts": [{"text": full_response}]}}
+                #     ]
+                #     
+                #     print(f"[ChatService] Triggering memory generation for user {user_id}...")
+                #     
+                #     # 비동기로 메모리 생성 요청 (wait_for_completion=False)
+                #     reasoning_engines.ReasoningEngine.generate_memories(
+                #         resource_name=self.remote_app.resource_name,
+                #         direct_contents_source={"events": events},
+                #         scope={"user_id": str(user_id)},
+                #         config={"wait_for_completion": False}
+                #     )
+                #     print(f"[ChatService] ✅ Memory generation triggered (Background)")
+                #     
+                # except Exception as mem_error:
+                #     # 메모리 생성 실패가 채팅 응답에 영향을 주면 안 됨
+                #     print(f"[ChatService] ⚠️ Failed to trigger memory generation: {mem_error}")
         
         except Exception as e:
             error_msg = f"\n\n[오류] {str(e)}"

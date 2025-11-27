@@ -35,7 +35,8 @@ class SessionService:
         )
         
         # Agent Engine ID (app_name으로 사용)
-        self.app_name = config.AGENT_RESOURCE_ID
+        # 중요: 값 뒤에 개행 문자(\n)가 포함될 수 있으므로 반드시 strip() 처리
+        self.app_name = config.AGENT_RESOURCE_ID.strip() if config.AGENT_RESOURCE_ID else None
     
     async def create_session(self, user_id: int, title: str = "새로운 대화") -> ChatSession:
         """

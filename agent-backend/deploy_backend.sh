@@ -46,7 +46,7 @@ echo "  ✓ VERTEX_AI_LOCATION: ${VERTEX_AI_LOCATION:-us-east4}"
 
 # 4. 배포 설정
 SERVICE_NAME="agent-backend-api"
-REGION="${VERTEX_AI_LOCATION:-us-east4}"
+REGION="asia-northeast3"
 PROJECT="${GOOGLE_CLOUD_PROJECT:-kangnam-backend}"
 
 echo -e "${YELLOW}[4/5]${NC} 배포 설정:"
@@ -67,7 +67,7 @@ gcloud run deploy "$SERVICE_NAME" \
   --project="$PROJECT" \
   --allow-unauthenticated \
   --update-secrets="AGENT_RESOURCE_ID=AGENT_RESOURCE_ID:latest,DATABASE_URL=DATABASE_URL:latest,DATABASE_KEY=DATABASE_KEY:latest,JWT_SECRET_KEY=JWT_SECRET_KEY:latest,GOOGLE_CLIENT_SECRET=GOOGLE_CLIENT_SECRET:latest" \
-  --set-env-vars="GOOGLE_CLOUD_PROJECT=$PROJECT,VERTEX_AI_LOCATION=$REGION,OAUTH_REDIRECT_URI=https://agent-backend-api-stcla4qgrq-uk.a.run.app/auth/google/callback" \
+  --set-env-vars="GOOGLE_CLOUD_PROJECT=$PROJECT,VERTEX_AI_LOCATION=us-east4,OAUTH_REDIRECT_URI=https://agent-backend-api-stcla4qgrq-du.a.run.app/auth/google/callback" \
   --min-instances=0 \
   --max-instances=10 \
   --timeout=300 \

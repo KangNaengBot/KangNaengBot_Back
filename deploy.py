@@ -203,7 +203,7 @@ def main(argv=None):
     # Secret Manager에서 설정 가져오기
     project_id = FLAGS.project_id if FLAGS.project_id else os.getenv("GOOGLE_CLOUD_PROJECT", "kangnam-backend")
     location = FLAGS.location if FLAGS.location else os.getenv("VERTEX_AI_LOCATION", "us-east4")
-    bucket = FLAGS.bucket if FLAGS.bucket else os.getenv("GOOGLE_CLOUD_STAGING_BUCKET")
+    bucket = FLAGS.bucket if FLAGS.bucket else os.getenv("GOOGLE_CLOUD_STAGING_BUCKET", "gs://kangnam-backend-agent-staging")
     user_id = FLAGS.user_id
     
     if not project_id:

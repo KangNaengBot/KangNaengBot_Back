@@ -1,29 +1,22 @@
-"""
-강남대학교 과목 정보 검색 도구
-
-reserch.py의 로직을 ADK Tool로 변환
-"""
-
+from fastapi import APIRouter, HTTPException, Depends
+from pydantic import BaseModel
+from typing import Optional, List, Dict, Any
 import requests
 import re
 from datetime import datetime
 from bs4 import BeautifulSoup
-from google.adk.tools import FunctionTool, ToolContext
-from typing import Dict, Any, Optional, List
 
+router = APIRouter(prefix="/proxy/subject", tags=["Subject Proxy"])
 
 # 강남대학교 강의계획서 시스템 Base URL
 BASE_URL = "https://app.kangnam.ac.kr/knumis/sbr"
 
-
 # ==================================================================
-# [Helper Functions] - reserch.py에서 가져온 파서 함수들
+# [Helper Functions]
 # ==================================================================
 
 def parse_syllabus_html(html: str) -> Dict[str, Any]:
-    """
-    강의계획서 상세 HTML을 파싱하여 JSON(dict) 형태로 반환합니다.
-    """
+    """강의계획서 상세 HTML을 파싱하여 JSON(dict) 형태로 반환합니다."""
     soup = BeautifulSoup(html, "html.parser")   
     data = {}
 
@@ -252,199 +245,150 @@ def parse_course_list(html: str) -> List[Dict[str, str]]:
         
     return courses
 
-
 # ==================================================================
-# [Tool 1] 과목 목록 검색
+# [API Endpoints]
 # ==================================================================
 
-def search_subject_list(
-    keyword: str,
-    year: Optional[str] = None,
-    semester: Optional[str] = None,
-    tool_context: Optional[ToolContext] = None
-) -> Dict[str, Any]:
-    """
-    강남대학교 과목 목록을 키워드로 검색합니다.
-    (백엔드 프록시 API 사용)
+class SearchRequest(BaseModel):
+    keyword: str
+    year: Optional[str] = None
+    semester: Optional[str] = None
+
+class DetailRequest(BaseModel):
+    params: str
+
+@router.post("/search")
+async def search_subject(request: SearchRequest):
+    """과목 목록 검색 프록시"""
+    keyword = request.keyword
+    year = request.year
+    semester = request.semester
     
-    Args:
-        keyword: 검색할 과목명 (예: "소프트웨어", "데이터")
-        year: 검색할 년도 (예: "2024"). 기본값: 현재 년도
-        semester: 검색할 학기 ("1" 또는 "2"). 기본값: 현재 월 기준 자동 판단
-        tool_context: ToolContext (자동 주입)
+    # 기본값 설정
+    if year is None:
+        year = str(datetime.now().year)
     
-    Returns:
-        검색 결과 딕셔너리
-    """
-    # 백엔드 API URL (환경변수 또는 기본값)
-    # 주의: 리전 변경 후 URL이 변경될 수 있으므로 배포 후 확인 필요
-    import os
-    BACKEND_URL = os.getenv("BACKEND_API_URL", "https://agent-backend-api-stcla4qgrq-du.a.run.app")
-    
-    # 로컬 테스트용 (필요 시 주석 해제)
-    # BACKEND_URL = "http://127.0.0.1:8080"
-    
-    try:
-        response = requests.post(
-            f"{BACKEND_URL}/proxy/subject/search",
-            json={
-                "keyword": keyword,
-                "year": year,
-                "semester": semester
-            },
-            timeout=60
-        )
-        response.raise_for_status()
-        result = response.json()
-        
-        # tool_context.state에 저장 (user: prefix로 사용자별 관리)
-        if tool_context and result.get("status") == "success":
-            tool_context.state["user:last_subject_search"] = {
-                "keyword": keyword,
-                "year": result["search_params"]["year"],
-                "semester": result["search_params"]["semester"],
-                "results": result["courses"]
-            }
+    if semester is None:
+        current_month = datetime.now().month
+        if 3 <= current_month <= 7:
+            semester = "1"
+        else:
+            semester = "2"
             
-        return {
-            "status": "success",
-            "count": result["count"],
-            "courses": result["courses"],
-            "search_params": result["search_params"],
-            "message": f"'{keyword}' 키워드로 {result['count']}개의 과목을 찾았습니다."
+    try:
+        # 세션 생성
+        session = requests.Session()
+        session.headers.update({
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+        })
+        
+        # 1. 쿠키 확보
+        form_page_url = f"{BASE_URL}/sbr1010.jsp"
+        try:
+            session.get(form_page_url, timeout=10)
+        except requests.RequestException as e:
+            print(f"Warning: 세션 쿠키 확보 실패 가능성: {e}")
+        
+        # 2. POST 페이로드
+        payload = {
+            "empl_numb": "",
+            "schl_year": year,
+            "schl_smst": semester,
+            "subj_numb": "",
+            "lctr_clas": "",
+            "save_gubn": "",
+            "dept_srch": "",
+            "srch_gubn": "11",
+            "subj_knam": keyword,
+            "subj_knam2": "",
+            "dept_code1": "",
+            "grad_area1": "H1"
         }
         
-    except Exception as e:
+        # 3. EUC-KR 인코딩
+        payload_encoded = {}
+        for key, value in payload.items():
+            payload_encoded[key] = value.encode('euc-kr')
+        
+        # 4. POST 요청
+        post_url = f"{BASE_URL}/sbr1010L.jsp"
+        headers = {
+            "Referer": form_page_url,
+            "Origin": "https://app.kangnam.ac.kr",
+            "Content-Type": "application/x-www-form-urlencoded"
+        }
+        
+        r_post = session.post(post_url, data=payload_encoded, headers=headers, timeout=15)
+        r_post.raise_for_status()
+        r_post.encoding = 'euc-kr'
+        
+        # 5. 파싱
+        courses = parse_course_list(r_post.text)
+        
         return {
-            "status": "error",
-            "error_type": "proxy_error",
-            "message": f"검색 중 오류 발생 (Proxy): {str(e)}",
-            "hint": "백엔드 서버 상태를 확인해주세요.",
+            "status": "success",
+            "count": len(courses),
+            "courses": courses,
             "search_params": {
                 "keyword": keyword,
                 "year": year,
                 "semester": semester
             }
         }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
-
-# ==================================================================
-# [Tool 2] 강의계획서 상세 조회
-# ==================================================================
-
-def get_subject_syllabus_detail(
-    subject_name: str,
-    professor_name: Optional[str] = None,
-    tool_context: Optional[ToolContext] = None
-) -> Dict[str, Any]:
-    """
-    특정 과목의 강의계획서 상세 정보를 조회합니다.
-    (백엔드 프록시 API 사용)
-    
-    Args:
-        subject_name: 조회할 과목명 (예: "소프트웨어공학")
-        professor_name: 담당 교수명 (선택, 동명이의 과목 구분용)
-        tool_context: ToolContext (자동 주입)
-    
-    Returns:
-        강의계획서 상세 정보 딕셔너리
-    """
-    if not tool_context:
-        return {
-            "status": "error",
-            "error_type": "context_missing",
-            "message": "tool_context가 필요합니다.",
-            "hint": "이 도구는 Agent 내에서만 사용할 수 있습니다."
-        }
-    
-    # 1. state에서 이전 검색 결과 조회 (user: prefix로 사용자별 관리)
-    cached = tool_context.state.get("user:last_subject_search", {})
-    results = cached.get("results", [])
-    
-    if not results:
-        return {
-            "status": "error",
-            "error_type": "not_found",
-            "message": "먼저 과목을 검색해야 합니다. search_subject_list 도구를 사용하세요.",
-            "hint": f"'{subject_name}' 과목을 검색하려면 먼저 키워드로 검색하세요."
-        }
-    
-    # 2. 과목명으로 매칭 (교수명도 있으면 추가 필터링)
-    matched_courses = [
-        c for c in results 
-        if subject_name in c["과목명"]
-    ]
-    
-    if professor_name:
-        matched_courses = [
-            c for c in matched_courses 
-            if professor_name in c["담당교수"]
-        ]
-    
-    if not matched_courses:
-        available = ", ".join([f"{c['과목명']}({c['담당교수']})" for c in results[:5]])
-        return {
-            "status": "error",
-            "error_type": "not_found",
-            "message": f"'{subject_name}' 과목을 찾을 수 없습니다.",
-            "hint": f"검색된 과목: {available}",
-            "available_courses": results
-        }
-    
-    if len(matched_courses) > 1 and not professor_name:
-        courses_list = ", ".join([f"{c['과목명']}({c['담당교수']})" for c in matched_courses])
-        return {
-            "status": "error",
-            "error_type": "multiple_matches",
-            "message": f"'{subject_name}'와 매칭되는 과목이 여러 개 있습니다.",
-            "hint": f"교수명을 함께 입력하세요: {courses_list}",
-            "matched_courses": matched_courses
-        }
-    
-    # 3. 매칭된 과목의 params로 상세 조회 (프록시 API 호출)
-    selected_course = matched_courses[0]
-    params_str = selected_course["params"]
-    
-    # 백엔드 API URL (환경변수 또는 기본값)
-    import os
-    BACKEND_URL = os.getenv("BACKEND_API_URL", "https://agent-backend-api-stcla4qgrq-du.a.run.app")
+@router.post("/detail")
+async def get_subject_detail(request: DetailRequest):
+    """강의계획서 상세 조회 프록시"""
+    params_str = request.params
     
     try:
-        response = requests.post(
-            f"{BACKEND_URL}/proxy/subject/detail",
-            json={"params": params_str},
-            timeout=60
+        # 세션 생성
+        session = requests.Session()
+        session.headers.update({
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+        })
+        
+        # params 파싱
+        val = params_str.split(',')
+        empl_numb = val[0]
+        schl_year = val[1]
+        schl_smst = val[2]
+        subj_numb = val[3]
+        lctr_clas = val[4]
+        
+        # URL 결정
+        temp_year = int(schl_year)
+        if temp_year >= 2020:
+            url_path = 'syllabus2020.jsp'
+        elif temp_year >= 2017:
+            url_path = 'syllabus2017.jsp'
+        else:
+            url_path = 'syllabus.jsp'
+        
+        repo_path = '../sbr/sbr3070_New.mrd' if temp_year >= 2014 else '../sbr/sbr3070.mrd'
+        
+        syllabus_url = (
+            f"{BASE_URL}/{url_path}?schl_year={schl_year}&schl_smst={schl_smst}"
+            f"&subj_numb={subj_numb}&lctr_clas={lctr_clas}&empl_numb={empl_numb}"
+            f"&repo_path={repo_path}&winopt=1010"
         )
-        response.raise_for_status()
-        result = response.json()
+        
+        # 강의계획서 요청
+        r_syllabus = session.get(syllabus_url, timeout=15)
+        r_syllabus.raise_for_status()
+        r_syllabus.encoding = 'euc-kr'
+        
+        # 파싱
+        syllabus_data = parse_syllabus_html(r_syllabus.text)
         
         return {
             "status": "success",
-            "subject_info": selected_course,
-            "syllabus": result["syllabus"],
-            "syllabus_url": result["syllabus_url"],
-            "message": f"'{selected_course['과목명']}' 강의계획서를 조회했습니다."
+            "syllabus": syllabus_data,
+            "syllabus_url": syllabus_url
         }
         
     except Exception as e:
-        return {
-            "status": "error",
-            "error_type": "proxy_error",
-            "message": f"강의계획서 조회 중 오류 (Proxy): {str(e)}",
-            "hint": "백엔드 서버 상태를 확인해주세요.",
-            "subject_info": selected_course
-        }
-
-
-# ==================================================================
-# ADK FunctionTool로 변환
-# ==================================================================
-
-search_subject_list_tool = FunctionTool(search_subject_list)
-get_subject_syllabus_detail_tool = FunctionTool(get_subject_syllabus_detail)
-
-ALL_SUBJECT_TOOLS = [
-    search_subject_list_tool,
-    get_subject_syllabus_detail_tool
-]
-
+        raise HTTPException(status_code=500, detail=str(e))
