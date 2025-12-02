@@ -46,8 +46,27 @@ class ChatService:
         )
         
         # 배포된 Agent Engine 연결 (프로덕션 방식)
-        print(f"[ChatService] Connecting to deployed Agent Engine: {config.AGENT_RESOURCE_ID}")
-        self.remote_app = agent_engines.get(config.AGENT_RESOURCE_ID)
+        # 배포된 Agent Engine 연결 (프로덕션 방식)
+        # 중요: agent_engines.get()은 full resource name을 받지만,
+        # 내부적으로 query() 호출 시 숫자 ID만 필요할 수 있음.
+        # 따라서 여기서 미리 숫자 ID를 추출해두거나, SDK 버전에 따라 처리가 다를 수 있음.
+        # 현재 에러: "Invalid resource name. The Reasoning Engine ID must be numeric."
+        # 해결: get()에는 full name을 쓰고, 실제 객체가 내부적으로 ID를 잘 관리하는지 확인.
+        # 만약 get() 자체가 숫자 ID를 원한다면 여기서 변환해야 함.
+        
+        resource_id = config.AGENT_RESOURCE_ID.strip()
+        if resource_id.startswith("projects/"):
+            # projects/.../reasoningEngines/12345 -> 12345 추출
+            try:
+                numeric_id = resource_id.split("/")[-1]
+                if numeric_id.isdigit():
+                    print(f"[ChatService] Extracted numeric ID: {numeric_id} from {resource_id}")
+                    resource_id = numeric_id
+            except Exception as e:
+                print(f"[ChatService] Failed to extract numeric ID: {e}")
+
+        print(f"[ChatService] Connecting to deployed Agent Engine: {resource_id}")
+        self.remote_app = agent_engines.get(resource_id)
         print(f"[ChatService] ✅ Connected to: {self.remote_app.display_name or 'Agent Engine'}")
     
     async def stream_message(
