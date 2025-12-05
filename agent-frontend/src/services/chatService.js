@@ -99,15 +99,18 @@ export async function createNewChat() {
 }
 
 /**
- * 메시지 전송 및 응답 수신 (인증 필요)
+ * 메시지 전송 및 응답 수신 (인증 필요, 빈 응답 시 자동 재시도)
  * @param {string} userId - 사용자 ID
  * @param {string} sessionId - 세션 ID
  * @param {string} message - 전송할 메시지
  * @param {function} onChunk - 청크 수신 시 호출되는 콜백 (text: string)
  * @param {function} onDone - 완료 시 호출되는 콜백
  * @param {function} onError - 에러 발생 시 호출되는 콜백
+ * @param {number} retryCount - 현재 재시도 횟수 (내부 사용)
  */
-export async function sendMessage(userId, sessionId, message, onChunk, onDone, onError) {
+export async function sendMessage(userId, sessionId, message, onChunk, onDone, onError, retryCount = 0) {
+  const MAX_RETRIES = 5;
+  
   try {
     const headers = {
       'Content-Type': 'application/json',
@@ -136,6 +139,25 @@ export async function sendMessage(userId, sessionId, message, onChunk, onDone, o
     // JSON 응답 처리
     const data = await response.json();
     
+    // 빈 응답 체크 및 재시도
+    if (!data.text || data.text.trim() === '') {
+      if (retryCount < MAX_RETRIES) {
+        console.log(`[ChatService] Empty response, retrying... (${retryCount + 1}/${MAX_RETRIES})`);
+        // 잠시 대기 후 재시도
+        await new Promise(resolve => setTimeout(resolve, 500));
+        return sendMessage(userId, sessionId, message, onChunk, onDone, onError, retryCount + 1);
+      } else {
+        console.log(`[ChatService] Max retries reached, giving up.`);
+        const fallbackText = '죄송합니다. 응답을 생성하는 데 문제가 발생했습니다. 다시 질문해주세요.';
+        for (const char of fallbackText) {
+          if (onChunk) onChunk(char);
+        }
+        if (onDone) onDone();
+        return;
+      }
+    }
+    
+    // 정상 응답 처리
     if (data.text) {
       // 타자기 효과를 위해 문자 단위로 청크 전달
       for (const char of data.text) {

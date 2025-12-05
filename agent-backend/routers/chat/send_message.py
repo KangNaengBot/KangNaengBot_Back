@@ -77,6 +77,11 @@ async def send_message(
         ):
             full_response += text_chunk
         
+        # 빈 응답 처리
+        if not full_response.strip():
+            print(f"[Chat] Warning: Empty response from Agent Engine for message: {request.message[:50]}...")
+            full_response = "죄송합니다. 응답을 생성하는 데 문제가 발생했습니다. 다시 질문해주세요."
+        
         # 순수 텍스트만 반환
         return {"text": full_response}
         
