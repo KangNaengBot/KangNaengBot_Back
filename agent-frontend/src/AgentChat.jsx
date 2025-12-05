@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import rehypeRaw from 'rehype-raw';
 import { createNewChat, sendMessage, generateToken, getAccessToken, clearAccessToken } from './services/chatService';
 
 const AgentChat = () => {
@@ -518,6 +519,7 @@ const AgentChat = () => {
                       <div className="markdown-body animate-fade-in">
                         <ReactMarkdown 
                           remarkPlugins={[remarkGfm]}
+                          rehypePlugins={[rehypeRaw]}
                           components={{
                             p: ({node, ...props}) => <p className="mb-2 last:mb-0" {...props} />,
                             ul: ({node, ...props}) => <ul className="list-disc ml-4 mb-2" {...props} />,
