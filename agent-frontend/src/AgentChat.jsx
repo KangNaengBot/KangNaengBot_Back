@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { createNewChat, sendMessage } from './services/chatService';
+import { createNewChat, sendMessage, generateToken, getAccessToken, clearAccessToken } from './services/chatService';
 
 const AgentChat = () => {
   const [inputValue, setInputValue] = useState('');
@@ -9,12 +9,19 @@ const AgentChat = () => {
   const [userId, setUserId] = useState(null);
   const [sessionId, setSessionId] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [textareaHeight, setTextareaHeight] = useState(50); // 입력란 높이 추적
-  const [showScrollButton, setShowScrollButton] = useState(false); // 스크롤 버튼 표시 여부
-  const [isMobile, setIsMobile] = useState(false); // 모바일 감지
+  const [textareaHeight, setTextareaHeight] = useState(50);
+  const [showScrollButton, setShowScrollButton] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  
+  // 로그인 상태
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [loginUserId, setLoginUserId] = useState('');
+  const [loginError, setLoginError] = useState('');
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+  
   const chatContainerRef = useRef(null);
   const textareaRef = useRef(null);
-  const isAtBottomRef = useRef(true); // 스크롤이 맨 아래에 있는지 추적
+  const isAtBottomRef = useRef(true);
   
   // 스트리밍용 refs
   const pendingTextRef = useRef('');
@@ -28,8 +35,48 @@ const AgentChat = () => {
     '교수님 이메일이 뭐야??',
   ];
 
+  // 로그인 처리
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    if (!loginUserId.trim() || isLoggingIn) return;
+    
+    setIsLoggingIn(true);
+    setLoginError('');
+    
+    try {
+      const { user_id } = await generateToken(loginUserId.trim());
+      console.log('Token generated for user:', user_id);
+      setIsLoggedIn(true);
+      // 로그인 후 자동으로 세션 시작
+      startNewSession();
+    } catch (error) {
+      console.error('Login failed:', error);
+      setLoginError('로그인에 실패했습니다. 다시 시도해주세요.');
+    } finally {
+      setIsLoggingIn(false);
+    }
+  };
+
+  // 로그아웃 처리
+  const handleLogout = () => {
+    clearAccessToken();
+    setIsLoggedIn(false);
+    setUserId(null);
+    setSessionId(null);
+    setChatMessages([]);
+    setLoginUserId('');
+  };
+
   // 세션 시작 함수 (재사용 가능)
   const startNewSession = async () => {
+    if (!getAccessToken()) {
+      setChatMessages([{
+        text: '로그인이 필요합니다.',
+        sender: 'bot'
+      }]);
+      return;
+    }
+    
     try {
       const { user_id, session_id } = await createNewChat();
       setUserId(user_id);
@@ -37,7 +84,6 @@ const AgentChat = () => {
       setChatMessages([]); // 채팅 내역 초기화
     } catch (error) {
       console.error('Failed to create chat:', error);
-      // 에러 메시지 표시
       setChatMessages([{
         text: '죄송합니다. 채팅 세션을 시작할 수 없습니다. 잠시 후 다시 시도해주세요.',
         sender: 'bot'
@@ -45,17 +91,12 @@ const AgentChat = () => {
     }
   };
 
-  // 컴포넌트 마운트 시 자동 세션 시작
-  useEffect(() => {
-    startNewSession();
-  }, []);
-
   // 모바일 감지
   useEffect(() => {
     const checkMobile = () => {
       const userAgent = navigator.userAgent || navigator.vendor || window.opera;
       const isMobileDevice = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(userAgent.toLowerCase());
-      const isSmallScreen = window.innerWidth < 768; // md breakpoint
+      const isSmallScreen = window.innerWidth < 768;
       setIsMobile(isMobileDevice || isSmallScreen);
     };
 
@@ -98,7 +139,6 @@ const AgentChat = () => {
       
       updateBotMessage(pendingTextRef.current, pendingBotIdRef.current, true);
       
-      // 다음 청크를 10ms 후에 처리 (타자기 효과)
       setTimeout(processNext, 10);
     };
     
@@ -109,7 +149,7 @@ const AgentChat = () => {
   const checkIfAtBottom = () => {
     if (!chatContainerRef.current) return true;
     const { scrollTop, scrollHeight, clientHeight } = chatContainerRef.current;
-    const threshold = 50; // 50px 여유
+    const threshold = 50;
     return scrollHeight - scrollTop - clientHeight < threshold;
   };
 
@@ -139,7 +179,6 @@ const AgentChat = () => {
   // 새 메시지 도착 시 자동 스크롤 (맨 아래에 있을 때만)
   useEffect(() => {
     if (chatMessages.length > 0 && isAtBottomRef.current) {
-      // 스트리밍 중에는 부드럽게, 완료 시에는 즉시
       const behavior = 'auto';
       scrollToBottom(behavior);
     }
@@ -160,7 +199,6 @@ const AgentChat = () => {
        isTyping: true
      };
     
-    // 입력란 즉시 초기화 (메시지 전송 전에!)
     setInputValue('');
     if (textareaRef.current) {
       textareaRef.current.value = '';
@@ -168,15 +206,10 @@ const AgentChat = () => {
       setTextareaHeight(50);
     }
     
-    // 사용자 메시지와 봇 플레이스홀더 추가
     setChatMessages(prev => [...prev, userMessage, typingIndicator]);
-    
-    // 메시지 전송 시 자동 스크롤 활성화
     isAtBottomRef.current = true;
-    
     setIsLoading(true);
     
-    // RAF 스트리밍 초기화
     pendingBotIdRef.current = botMessageId;
     pendingTextRef.current = '';
 
@@ -185,7 +218,6 @@ const AgentChat = () => {
         userId,
         sessionId,
         messageText,
-        // onChunk: 큐에 추가
         (chunk) => {
           chunkQueueRef.current.push(chunk);
           
@@ -193,7 +225,6 @@ const AgentChat = () => {
             processChunkQueue();
           }
         },
-        // onDone: 스트리밍 완료
         () => {
           const waitForQueue = () => {
             if (chunkQueueRef.current.length > 0 || isProcessingRef.current) {
@@ -212,7 +243,6 @@ const AgentChat = () => {
           
           waitForQueue();
         },
-        // onError: 에러 처리
         (errorMessage) => {
           const botId = pendingBotIdRef.current;
           setIsLoading(false);
@@ -249,7 +279,6 @@ const AgentChat = () => {
        isTyping: true
      };
 
-    // 입력란 초기화
     setInputValue('');
     if (textareaRef.current) {
       textareaRef.current.value = '';
@@ -258,13 +287,9 @@ const AgentChat = () => {
     }
 
     setChatMessages(prev => [...prev, userMessage, typingIndicator]);
-    
-    // 메시지 전송 시 자동 스크롤 활성화
     isAtBottomRef.current = true;
-    
     setIsLoading(true);
     
-    // RAF 스트리밍 초기화
     pendingBotIdRef.current = botMessageId;
     pendingTextRef.current = '';
 
@@ -325,11 +350,9 @@ const AgentChat = () => {
   // textarea 높이 자동 조절
   const adjustTextareaHeight = (textarea) => {
     if (textarea) {
-      // 높이를 'auto'로 설정하여 정확한 scrollHeight 측정
       textarea.style.height = 'auto';
       const scrollHeight = textarea.scrollHeight;
 
-      // 최소 50px, 최대 120px
       const minHeight = 50;
       const maxHeight = 120;
       const newHeight = Math.max(minHeight, Math.min(scrollHeight, maxHeight));
@@ -344,13 +367,77 @@ const AgentChat = () => {
     adjustTextareaHeight(e.target);
   };
 
+  // 로그인 화면
+  if (!isLoggedIn) {
+    return (
+      <div 
+        className="flex flex-col w-full overflow-hidden bg-gradient-to-br from-sky-100 to-sky-200 dark:from-sky-800 dark:to-sky-900 font-display text-gray-800 dark:text-gray-200"
+        style={{ height: '100dvh' }}
+      >
+        <div className="flex flex-col items-center justify-center flex-1 p-6">
+          <div className="w-full max-w-md bg-white/80 dark:bg-gray-800/80 backdrop-blur-md rounded-2xl shadow-xl p-8">
+            <h1 className="text-3xl font-bold text-center text-gray-800 dark:text-white mb-2">
+              🌽 강냉이
+            </h1>
+            <p className="text-center text-gray-600 dark:text-gray-400 mb-8">
+              강남대학교 AI 챗봇
+            </p>
+            
+            <form onSubmit={handleLogin} className="space-y-6">
+              <div>
+                <label 
+                  htmlFor="userId" 
+                  className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
+                >
+                  사용자 번호 입력
+                </label>
+                <input
+                  type="text"
+                  id="userId"
+                  value={loginUserId}
+                  onChange={(e) => setLoginUserId(e.target.value)}
+                  placeholder="예: 1, 2, 3..."
+                  className="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                  disabled={isLoggingIn}
+                />
+                <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                  ⚠️ 테스트용 로그인입니다. 아무 숫자나 입력하세요.
+                </p>
+              </div>
+              
+              {loginError && (
+                <p className="text-red-500 text-sm text-center">{loginError}</p>
+              )}
+              
+              <button
+                type="submit"
+                disabled={!loginUserId.trim() || isLoggingIn}
+                className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-medium rounded-xl transition-colors shadow-lg"
+              >
+                {isLoggingIn ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <span className="animate-spin">⏳</span>
+                    로그인 중...
+                  </span>
+                ) : (
+                  '시작하기'
+                )}
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // 채팅 화면
   return (
     <div 
       className="flex flex-col w-full overflow-hidden bg-gradient-to-br from-sky-100 to-sky-200 dark:from-sky-800 dark:to-sky-900 font-display text-gray-800 dark:text-gray-200"
       style={{ height: '100dvh' }}
     >
       <div className="flex flex-col items-center p-2 md:p-6 lg:p-6 flex-1 min-h-0">
-        {/* New 버튼 헤더 */}
+        {/* 헤더 */}
         <div className="flex items-center justify-between w-full max-w-2xl mb-4 flex-shrink-0">
           <button
             onClick={startNewSession}
@@ -361,11 +448,17 @@ const AgentChat = () => {
             <span className="font-medium">New</span>
           </button>
           <h1 className="text-2xl font-bold text-gray-800 dark:text-white">강남대학교 챗봇</h1>
-          <div className="w-20"></div> {/* Spacer for centering */}
+          <button
+            onClick={handleLogout}
+            className="flex items-center gap-1 px-3 py-2 text-sm bg-white/50 dark:bg-black/20 backdrop-blur-sm border border-white/60 dark:border-white/20 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
+          >
+            <span>🚪</span>
+            <span>로그아웃</span>
+          </button>
         </div>
 
         {chatMessages.length === 0 ? (
-          // Initial View - 높이를 명확히 제한
+          // Initial View
           <div className="flex w-full max-w-2xl flex-col items-center justify-center gap-6 flex-1 min-h-0 py-4 overflow-hidden">
             <h1 className="text-3xl md:text-4xl font-bold text-gray-800 dark:text-white">강남대학교 챗봇 강냉이</h1>
             <div className="w-full px-4">
@@ -387,7 +480,6 @@ const AgentChat = () => {
           <div 
             className={`w-full max-w-2xl flex-1 flex flex-col min-h-0 ${isMobile ? '' : 'mb-3'}`}
             style={!isMobile ? {
-              // 데스크톱: 기존 방식 유지
               maxHeight: `calc(100vh - ${textareaHeight + 120}px)`,
               minHeight: '700px',
               transition: 'max-height 0.2s ease-out'
@@ -421,10 +513,8 @@ const AgentChat = () => {
                          </div>
                     ) :
                     message.isStreaming ? (
-                      // 스트리밍 중: 일반 텍스트 (페이드 인)
                       <div className="whitespace-pre-wrap animate-fade-in">{message.text}</div>
                     ) : (
-                      // 스트리밍 완료: 마크다운 렌더링 (페이드 전환)
                       <div className="markdown-body animate-fade-in">
                         <ReactMarkdown 
                           remarkPlugins={[remarkGfm]}
@@ -493,7 +583,7 @@ const AgentChat = () => {
         )}
       </div>
 
-      {/* Input Area - 항상 표시 */}
+      {/* Input Area */}
       <div className={`w-full flex justify-center ${
         isMobile 
           ? 'sticky bottom-0 bg-white/70 dark:bg-gray-900/70 backdrop-blur-md border-t border-white/40 dark:border-gray-700 pt-2' 
@@ -509,13 +599,11 @@ const AgentChat = () => {
               onChange={handleTextareaChange}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
-                  // 한글 입력 중(조합 중)에는 엔터 이벤트 무시
                   if (e.nativeEvent.isComposing) {
                     return;
                   }
                   
                   if (e.metaKey || e.ctrlKey) {
-                    // Cmd+Enter (Mac) 또는 Ctrl+Enter (Windows/Linux): 줄바꿈
                     e.preventDefault();
                     
                     const textarea = e.target;
@@ -531,18 +619,13 @@ const AgentChat = () => {
                     });
                     return;
                   } else if (!e.shiftKey) {
-                    // Enter만: 메시지 전송
                     e.preventDefault();
                     
-                    // 입력값이 비어있으면 전송하지 않음
                     if (inputValue.trim() === '') {
                       return;
                     }
                     
                     handleSendMessage();
-                  } else {
-                    // Shift+Enter: 기본 동작 허용 (줄바꿈)
-                    // e.preventDefault() 제거하여 기본 줄바꿈 동작 허용
                   }
                 }
               }}
