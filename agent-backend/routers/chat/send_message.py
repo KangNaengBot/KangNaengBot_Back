@@ -5,10 +5,11 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from uuid import UUID
+from typing import Optional
 import json
 
 from services.chat_service import ChatService, get_chat_service
-from utils.dependencies import get_current_user
+from utils.dependencies import get_current_user_or_guest
 
 router = APIRouter()
 
@@ -17,6 +18,7 @@ class MessageRequest(BaseModel):
     """메시지 전송 요청"""
     session_id: str
     message: str
+    user_id: Optional[int] = None  # 게스트 모드에서 사용
     
     class Config:
         json_schema_extra = {
@@ -30,25 +32,34 @@ class MessageRequest(BaseModel):
 @router.post("/message")
 async def send_message(
     request: MessageRequest,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user_or_guest),
     chat_service: ChatService = Depends(get_chat_service)
 ):
     """
     메시지 전송 및 응답
     
     Agent Engine에 메시지를 전송하고 전체 응답을 한 번에 반환합니다.
+    인증 없이도 게스트로 메시지 전송 가능합니다.
     
-    Headers:
+    Headers (선택사항):
         Authorization: Bearer {access_token}
     
     Body:
         session_id: 세션 UUID
         message: 전송할 메시지
+        user_id: 사용자 ID (게스트 모드에서 세션 생성 시 받은 ID)
     
     Response (JSON):
         {"text": "응답 텍스트", "done": true}
     """
-    user_id = current_user["id"]
+    # 게스트 모드에서는 요청에서 user_id를 가져옴
+    is_guest = current_user.get("is_guest", False)
+    
+    if is_guest and request.user_id:
+        user_id = request.user_id
+        print(f"[Chat] Guest message with user_id from request: {user_id}")
+    else:
+        user_id = current_user["id"]
     
     # session_id 검증
     try:

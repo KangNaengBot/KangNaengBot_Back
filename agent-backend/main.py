@@ -48,18 +48,14 @@ app = FastAPI(
 IS_PRODUCTION = os.getenv("K_SERVICE") is not None  # Cloud Run 환경 감지
 
 # CORS 설정 (프론트엔드 연동용)
+# 프로덕션과 로컬 개발 환경 모두 지원
 allowed_origins = [
     "https://gangnangbot.vercel.app",  # 프로덕션 프론트엔드
+    "http://localhost:3000",
+    "http://localhost:8080",
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:8080",
 ]
-
-# 로컬 개발 환경에서는 localhost 추가
-if not IS_PRODUCTION:
-    allowed_origins.extend([
-        "http://localhost:3000",
-        "http://localhost:8080",
-        "http://127.0.0.1:3000",
-        "http://127.0.0.1:8080",
-    ])
 
 app.add_middleware(
     CORSMiddleware,
