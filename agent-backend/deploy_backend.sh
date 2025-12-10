@@ -26,9 +26,10 @@ echo -e "${YELLOW}[1/5]${NC} 프로젝트 루트로 이동: $(pwd)"
 # 2. Google Cloud 설정
 PROJECT_ID="kangnam-backend"
 
-# 3. Secret Manager에서 AGENT_RESOURCE_ID 로드
+# 3. Secret Manager에서 필요한 설정들 로드
 echo -e "${YELLOW}[2/5]${NC} Secret Manager에서 설정 로드 중..."
 AGENT_RESOURCE_ID=$(gcloud secrets versions access latest --secret=AGENT_RESOURCE_ID --project=$PROJECT_ID 2>/dev/null)
+OAUTH_REDIRECT_URI=$(gcloud secrets versions access latest --secret=OAUTH_REDIRECT_URI --project=$PROJECT_ID 2>/dev/null)
 
 if [ -z "$AGENT_RESOURCE_ID" ]; then
     echo -e "${RED}에러: Secret Manager에 AGENT_RESOURCE_ID가 없습니다.${NC}"
@@ -37,7 +38,15 @@ if [ -z "$AGENT_RESOURCE_ID" ]; then
     exit 1
 fi
 
+if [ -z "$OAUTH_REDIRECT_URI" ]; then
+    echo -e "${RED}에러: Secret Manager에 OAUTH_REDIRECT_URI가 없습니다.${NC}"
+    echo "다음 명령어로 추가하세요:"
+    echo "  echo \"YOUR_REDIRECT_URI\" | gcloud secrets create OAUTH_REDIRECT_URI --data-file=- --project=$PROJECT_ID"
+    exit 1
+fi
+
 echo "  ✓ AGENT_RESOURCE_ID: $AGENT_RESOURCE_ID"
+echo "  ✓ OAUTH_REDIRECT_URI: $OAUTH_REDIRECT_URI"
 
 # 4. 환경 변수 확인
 echo -e "${YELLOW}[3/5]${NC} 환경 변수 확인 중..."
@@ -46,7 +55,7 @@ echo "  ✓ VERTEX_AI_LOCATION: ${VERTEX_AI_LOCATION:-us-east4}"
 
 # 4. 배포 설정
 SERVICE_NAME="agent-backend-api"
-REGION="asia-northeast3"
+REGION="us-east4"
 PROJECT="${GOOGLE_CLOUD_PROJECT:-kangnam-backend}"
 
 echo -e "${YELLOW}[4/5]${NC} 배포 설정:"
@@ -67,7 +76,7 @@ gcloud run deploy "$SERVICE_NAME" \
   --project="$PROJECT" \
   --allow-unauthenticated \
   --update-secrets="AGENT_RESOURCE_ID=AGENT_RESOURCE_ID:latest,DATABASE_URL=DATABASE_URL:latest,DATABASE_KEY=DATABASE_KEY:latest,JWT_SECRET_KEY=JWT_SECRET_KEY:latest,GOOGLE_CLIENT_SECRET=GOOGLE_CLIENT_SECRET:latest" \
-  --set-env-vars="GOOGLE_CLOUD_PROJECT=$PROJECT,VERTEX_AI_LOCATION=us-east4,OAUTH_REDIRECT_URI=https://agent-backend-api-stcla4qgrq-du.a.run.app/auth/google/callback" \
+  --set-env-vars="GOOGLE_CLOUD_PROJECT=$PROJECT,VERTEX_AI_LOCATION=us-east4,OAUTH_REDIRECT_URI=$OAUTH_REDIRECT_URI" \
   --min-instances=0 \
   --max-instances=10 \
   --timeout=300 \
