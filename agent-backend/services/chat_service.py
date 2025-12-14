@@ -13,6 +13,7 @@ from domain.repositories.profile_repository import ProfileRepository
 import vertexai
 from vertexai import agent_engines
 import config
+import asyncio
 
 
 class ChatService:
@@ -268,7 +269,9 @@ class ChatService:
                             if has_function_call:
                                 print(f"[ChatService] Function call detected but no text response. Retrying ... ({attempt+1}/{max_retries})")
                             else:
-                                print(f"[ChatService] Empty response (No text, No function call). Retrying ... ({attempt+1}/{max_retries})")
+                                print(f"[ChatService] Empty response (No text, No function call). Retrying in 2 seconds ... ({attempt+1}/{max_retries})")
+                            
+                            await asyncio.sleep(2)
                             continue
                         else:
                             print(f"[ChatService] Empty response received after {max_retries} attempts. (Function called: {has_function_call})")
