@@ -169,118 +169,53 @@ class ChatService:
                     print(f"[ChatService] Profile context added for user {user_id}")
             
             # 3. 배포된 Agent Engine에 메시지 전송 (스트리밍)
-            # 빈 응답인 경우 최대 3회 재시도
+            # 빈 응답인 경우 재시도 (최대 3회), Exception 발생 시 즉시 중단
             max_retries = 3
             full_response = ""
             
             for attempt in range(max_retries):
                 try:
-                    full_response = "" # 재시도 시 초기화
-                    has_function_call = False # 함수 호출 발생 여부 체크
+                    full_response = ""
                     
                     print(f"[ChatService] Sending to deployed Agent Engine (Attempt {attempt+1}/{max_retries}):")
                     print(f"  user_id={user_id}")
                     print(f"  session_id={session.vertex_session_id}")
-                    print(f"  message={message_text[:50]}...")
+                    # print(f"  message={message_text[:50]}...")
                     
-                    # 배포된 Agent의 stream_query 메서드 호출 (프로필 정보 포함)
-                    for event in self.remote_app.stream_query(
-                        message=enhanced_message,  # 프로필 정보가 포함된 메시지
+                    # 배포된 Agent의 stream_query 메서드 호출
+                    response_stream = self.remote_app.stream_query(
+                        message=enhanced_message,
                         user_id=str(user_id),
                         session_id=session.vertex_session_id
-                    ):
-                        # event를 문자열로 변환
-                        event_text = ""
-                        
-                        # 1. parts 속성/키 확인 (Vertex AI 표준 응답 구조)
-                        parts_list = None
-                        
-                        # 1-1. 객체의 parts 속성
-                        if hasattr(event, 'parts') and event.parts:
-                            parts_list = event.parts
-                        # 1-2. dict의 content.parts 구조 (실제 Vertex AI 응답)
-                        elif isinstance(event, dict) and 'content' in event and isinstance(event['content'], dict):
-                            if 'parts' in event['content']:
-                                parts_list = event['content']['parts']
-                        # 1-3. dict의 직접 parts 키
-                        elif isinstance(event, dict) and 'parts' in event:
-                            parts_list = event['parts']
-                        
-                        if parts_list:
-                            for part in parts_list:
-                                # 딕셔너리 형태의 part 처리
-                                if isinstance(part, dict):
-                                    # 함수 호출/응답은 건너뛰기
-                                    if 'function_call' in part or 'function_response' in part:
-                                        has_function_call = True
-                                        continue
-                                    if 'text' in part:
-                                        event_text += part['text']
-                                # 객체 형태의 part 처리
-                                else:
-                                    if hasattr(part, 'function_call') and part.function_call:
-                                        has_function_call = True
-                                        continue
-                                    if hasattr(part, 'function_response') and part.function_response:
-                                        has_function_call = True
-                                        continue
-                                    if hasattr(part, 'text') and part.text:
-                                        event_text += part.text
-                        
-                        # 2. 문자열인 경우
-                        elif isinstance(event, str):
-                            event_text = event
-                            
-                        # 3. 딕셔너리에서 직접 text/content 추출
-                        elif isinstance(event, dict):
-                            # 함수 호출/응답 데이터는 무시
-                            if 'function_call' in event or 'function_response' in event:
-                                has_function_call = True
-                                continue
-                                
-                            # text나 content 키가 있는 경우만 추출
-                            if 'text' in event:
-                                event_text = str(event['text'])
-                            elif 'content' in event:
-                                event_text = str(event['content'])
-                            
-                        # 4. 기타 속성 확인
-                        elif hasattr(event, 'text') and event.text:
-                            event_text = str(event.text)
-                        elif hasattr(event, 'content') and event.content:
-                            event_text = str(event.content)
-                        
-                        # 텍스트가 없으면 건너뛰기
+                    )
+                    
+                    for event in response_stream:
+                        # 별도 메서드로 분리된 파싱 로직 사용
+                        event_text = self._extract_text_from_event(event)
+
                         if not event_text:
                             continue
                         
-                        # 응답 누적
                         full_response += event_text
-                        
-                        # 문자 단위로 스트리밍
                         for char in event_text:
                             yield char
                     
                     print(f"[ChatService] Agent response complete. Total length: {len(full_response)}")
                     
-                    # 응답이 비어있으면 재시도
                     if not full_response:
                         if attempt < max_retries - 1:
-                            if has_function_call:
-                                print(f"[ChatService] Function call detected but no text response. Retrying ... ({attempt+1}/{max_retries})")
-                            else:
-                                print(f"[ChatService] Empty response (No text, No function call). Retrying in 2 seconds ... ({attempt+1}/{max_retries})")
-                            
+                            print(f"[ChatService] Empty response. Retrying in 2 seconds ... ({attempt+1}/{max_retries})")
                             await asyncio.sleep(2)
                             continue
                         else:
-                            print(f"[ChatService] Empty response received after {max_retries} attempts. (Function called: {has_function_call})")
+                            print(f"[ChatService] Empty response received after {max_retries} attempts.")
                     else:
-                        # 응답이 있으면 종료
+                        # 성공 시 루프 종료
                         break
                 
                 except Exception as engine_error:
-                    error_msg = f"\n\n[Agent Engine Error] {str(engine_error)}"
+                    # 사용자 요청: Exception 발생 시 재시도 하지 않고 에러 메시지 전송
+                    error_msg = f"\n\n[System Error] 응답 생성에 실패했습니다. (Error Code: 500, Details: {str(engine_error)})"
                     print(f"[ChatService] Agent Engine error: {engine_error}")
                     import traceback
                     traceback.print_exc()
@@ -327,6 +262,59 @@ class ChatService:
             print(f"[ChatService] Error in stream_message: {e}")
             yield error_msg
     
+    def _extract_text_from_event(self, event) -> str:
+        """
+        Vertex AI 응답 이벤트에서 텍스트 추출
+        다양한 응답 구조(Dict, Object)를 유연하게 처리
+        """
+        text = ""
+        try:
+            # 1. Dictionary 구조 처리
+            if isinstance(event, dict):
+                # 1-1. content.parts 구조 (User Provided Log Case)
+                # {'content': {'parts': [{'text': '...'}], 'role': 'model'}}
+                if 'content' in event and isinstance(event['content'], dict):
+                    parts = event['content'].get('parts', [])
+                    for part in parts:
+                        if isinstance(part, dict):
+                            text += part.get('text', '')
+                        elif hasattr(part, 'text'):
+                            text += part.text
+                            
+                # 1-2. parts 직접 접근
+                elif 'parts' in event:
+                    parts = event['parts']
+                    for part in parts:
+                        if isinstance(part, dict):
+                            text += part.get('text', '')
+                        elif hasattr(part, 'text'):
+                            text += part.text
+
+                # 1-3. 단순 텍스트 필드
+                elif 'text' in event:
+                    text = str(event['text'])
+                elif 'content' in event and isinstance(event['content'], str):
+                    text = str(event['content'])
+            
+            # 2. Object 구조 처리 (SDK Response Objects)
+            else:
+                if hasattr(event, 'parts'):
+                    for part in event.parts:
+                        if hasattr(part, 'text'):
+                            text += part.text
+                elif hasattr(event, 'text'):
+                    text = str(event.text)
+                elif hasattr(event, 'content'):
+                    text = str(event.content)
+                elif isinstance(event, str):
+                    text = event
+                    
+        except Exception as e:
+            # 파싱 에러는 로그만 남기고 무시 (스트림 중단 방지)
+            print(f"[ChatService] Failed to parse event: {e}, Event: {event}")
+            
+        return text
+
     def get_session_messages(
         self,
         session_sid: UUID,
