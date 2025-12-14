@@ -10,6 +10,7 @@ from domain.entities.chat_message import ChatMessage
 from domain.repositories.chat_message_repository import ChatMessageRepository
 from domain.repositories.chat_session_repository import ChatSessionRepository
 from domain.repositories.profile_repository import ProfileRepository
+from utils.input_sanitizer import sanitize_message
 import vertexai
 from vertexai import agent_engines
 import config
@@ -94,6 +95,19 @@ class ChatService:
             응답 텍스트 (문자 단위)
         """
         try:
+            # ========================================
+            # 🛡️ 보안: 입력 살균 (최우선 처리)
+            # ========================================
+            # 서비스 레이어 진입 시 가장 먼저 실행
+            # XSS, Script Injection, HTML 태그 등 제거
+            message_text = sanitize_message(message_text)
+            
+            if not message_text:
+                raise ValueError("Message cannot be empty after sanitization")
+            
+            print(f"[ChatService] ✅ Input sanitized (length: {len(message_text)})")
+            # ========================================
+            
             # 1. 세션 조회
             session = self.session_repo.find_by_sid(session_sid)
             if not session:

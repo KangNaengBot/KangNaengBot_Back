@@ -21,6 +21,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer
 from starlette.middleware.sessions import SessionMiddleware
 
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+
 # 새로운 라우터 구조
 from routers.sessions import router as sessions_router
 from routers.chat import router as chat_router
@@ -43,6 +46,11 @@ app = FastAPI(
         "persistAuthorization": True
     }
 )
+
+# SlowAPI Rate Limiter 설정
+from routers.chat.send_message import limiter
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # 환경 감지
 IS_PRODUCTION = os.getenv("K_SERVICE") is not None  # Cloud Run 환경 감지

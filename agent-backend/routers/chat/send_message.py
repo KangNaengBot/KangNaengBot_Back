@@ -1,15 +1,21 @@
 """
 POST /chat/message - 메시지 전송 및 스트리밍 응답
 """
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from uuid import UUID
 from typing import Optional
 import json
 
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+
 from services.chat_service import ChatService, get_chat_service
 from utils.dependencies import get_current_user_or_guest
+
+# Rate Limiter 초기화 (IP 주소 기반)
+limiter = Limiter(key_func=get_remote_address)
 
 router = APIRouter()
 
@@ -19,6 +25,13 @@ class MessageRequest(BaseModel):
     session_id: str
     message: str
     user_id: Optional[int] = None  # 게스트 모드에서 사용
+    
+    @classmethod
+    def validate_message(cls, v: str) -> str:
+        """메시지 검증"""
+        if not v or not v.strip():
+            raise ValueError("Message cannot be empty")
+        return v
     
     class Config:
         json_schema_extra = {
@@ -30,8 +43,10 @@ class MessageRequest(BaseModel):
 
 
 @router.post("/message")
+@limiter.limit("30/minute")  # 1분에 30개 요청 제한
 async def send_message(
-    request: MessageRequest,
+    request: Request,  # SlowAPI가 요구하는 Request 객체
+    message_request: MessageRequest,
     current_user: dict = Depends(get_current_user_or_guest),
     chat_service: ChatService = Depends(get_chat_service)
 ):
@@ -55,15 +70,15 @@ async def send_message(
     # 게스트 모드에서는 요청에서 user_id를 가져옴
     is_guest = current_user.get("is_guest", False)
     
-    if is_guest and request.user_id:
-        user_id = request.user_id
+    if is_guest and message_request.user_id:
+        user_id = message_request.user_id
         print(f"[Chat] Guest message with user_id from request: {user_id}")
     else:
         user_id = current_user["id"]
     
     # session_id 검증
     try:
-        session_uuid = UUID(request.session_id)
+        session_uuid = UUID(message_request.session_id)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid session ID format")
     
@@ -73,7 +88,7 @@ async def send_message(
         async for text_chunk in chat_service.stream_message(
             user_id=user_id,
             session_sid=session_uuid,
-            message_text=request.message
+            message_text=message_request.message
         ):
             full_response += text_chunk
         
