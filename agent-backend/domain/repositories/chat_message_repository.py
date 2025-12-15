@@ -26,6 +26,7 @@ class ChatMessageRepository(Repository[ChatMessage]):
             result = self.db.table("chat_messages") \
                 .select("*") \
                 .eq("id", id) \
+                .is_("deleted_at", "null") \
                 .single() \
                 .execute()
             
@@ -51,6 +52,7 @@ class ChatMessageRepository(Repository[ChatMessage]):
             query = self.db.table("chat_messages") \
                 .select("*") \
                 .eq("session_id", session_id) \
+                .is_("deleted_at", "null") \
                 .order("created_at")
             
             if limit:
@@ -68,6 +70,7 @@ class ChatMessageRepository(Repository[ChatMessage]):
             result = self.db.table("chat_messages") \
                 .select("*") \
                 .eq("session_id", session_id) \
+                .is_("deleted_at", "null") \
                 .order("created_at", desc=True) \
                 .limit(count) \
                 .execute()
@@ -98,10 +101,13 @@ class ChatMessageRepository(Repository[ChatMessage]):
             raise
     
     def delete(self, id: int) -> bool:
-        """Hard Delete (권장하지 않음)"""
+        """Soft Delete"""
         try:
             result = self.db.table("chat_messages") \
-                .delete() \
+                .update({
+                    "deleted_at": datetime.utcnow().isoformat(),
+                    "updated_at": datetime.utcnow().isoformat()
+                }) \
                 .eq("id", id) \
                 .execute()
             
@@ -111,16 +117,37 @@ class ChatMessageRepository(Repository[ChatMessage]):
             return False
     
     def delete_by_session(self, session_id: int) -> bool:
-        """세션의 모든 메시지 삭제"""
+        """세션의 모든 메시지 Soft Delete"""
         try:
             result = self.db.table("chat_messages") \
-                .delete() \
+                .update({
+                    "deleted_at": datetime.utcnow().isoformat(),
+                    "updated_at": datetime.utcnow().isoformat()
+                }) \
                 .eq("session_id", session_id) \
                 .execute()
             
             return True
         except Exception as e:
             print(f"[ChatMessageRepository] Error deleting messages by session: {e}")
+            return False
+
+    def delete_by_session_ids(self, session_ids: List[int]) -> bool:
+        """여러 세션의 모든 메시지 Soft Delete"""
+        if not session_ids:
+            return True
+            
+        try:
+            result = self.db.table("chat_messages") \
+                .update({
+                    "deleted_at": datetime.utcnow().isoformat(),
+                    "updated_at": datetime.utcnow().isoformat()
+                }) \
+                .in_("session_id", session_ids) \
+                .execute()
+            return True
+        except Exception as e:
+            print(f"[ChatMessageRepository] Error deleting messages by session ids: {e}")
             return False
     
     def _to_entity(self, row: dict) -> ChatMessage:
@@ -131,7 +158,9 @@ class ChatMessageRepository(Repository[ChatMessage]):
             session_id=row['session_id'],
             role=row['role'],
             content=row['content'],
-            created_at=self._parse_datetime(row['created_at'])
+            created_at=self._parse_datetime(row['created_at']),
+            updated_at=self._parse_datetime(row.get('updated_at')),
+            deleted_at=self._parse_datetime(row.get('deleted_at'))
         )
     
     def _parse_datetime(self, dt_str: str) -> datetime:

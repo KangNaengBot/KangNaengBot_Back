@@ -26,6 +26,7 @@ class UserRepository(Repository[User]):
             result = self.db.table("users") \
                 .select("*") \
                 .eq("id", id) \
+                .is_("deleted_at", "null") \
                 .single() \
                 .execute()
             
@@ -42,6 +43,7 @@ class UserRepository(Repository[User]):
             result = self.db.table("users") \
                 .select("*") \
                 .eq("sid", str(sid)) \
+                .is_("deleted_at", "null") \
                 .single() \
                 .execute()
             
@@ -58,6 +60,7 @@ class UserRepository(Repository[User]):
             result = self.db.table("users") \
                 .select("*") \
                 .eq("google_id", google_id) \
+                .is_("deleted_at", "null") \
                 .single() \
                 .execute()
             
@@ -74,6 +77,7 @@ class UserRepository(Repository[User]):
             result = self.db.table("users") \
                 .select("*") \
                 .eq("email", email) \
+                .is_("deleted_at", "null") \
                 .single() \
                 .execute()
             
@@ -123,10 +127,10 @@ class UserRepository(Repository[User]):
             return False
     
     def delete(self, id: int) -> bool:
-        """Hard Delete (권장하지 않음)"""
+        """Soft Delete"""
         try:
             result = self.db.table("users") \
-                .delete() \
+                .update({"deleted_at": datetime.utcnow().isoformat()}) \
                 .eq("id", id) \
                 .execute()
             
@@ -144,7 +148,8 @@ class UserRepository(Repository[User]):
             email=row['email'],
             name=row.get('name'),
             created_at=self._parse_datetime(row['created_at']),
-            updated_at=self._parse_datetime(row['updated_at'])
+            updated_at=self._parse_datetime(row['updated_at']),
+            deleted_at=self._parse_datetime(row['deleted_at']) if row.get('deleted_at') else None
         )
     
     def _parse_datetime(self, dt_str: str) -> datetime:

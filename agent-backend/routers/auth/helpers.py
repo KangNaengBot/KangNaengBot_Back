@@ -14,27 +14,28 @@ async def upsert_user(db: AsyncSession, google_id: str, email: str, name: str) -
     Returns:
         user_id: BIGINT (자동 증가 ID의 문자열 표현)
     """
-    # google_id로 기존 사용자 조회 (users 테이블)
+    # google_id로 활성 사용자 조회 (users 테이블)
     result = await db.execute(
-        text("SELECT id FROM users WHERE google_id = :google_id"),
+        text("SELECT id FROM users WHERE google_id = :google_id AND deleted_at IS NULL"),
         {"google_id": google_id}
     )
     existing_user = result.fetchone()
 
     if existing_user:
-        # 기존 사용자 - 이메일, 이름 업데이트
+        # 기존 활성 사용자 - 이메일, 이름 업데이트
+        user_id = existing_user[0]
         await db.execute(
             text("""
                 UPDATE users
                 SET email = :email, name = :name, updated_at = NOW()
-                WHERE google_id = :google_id
+                WHERE id = :id
             """),
-            {"email": email, "name": name, "google_id": google_id}
+            {"email": email, "name": name, "id": user_id}
         )
         await db.commit()
-        return str(existing_user[0])  # BIGINT를 문자열로 변환
+        return str(user_id)  # BIGINT를 문자열로 변환
     else:
-        # 신규 사용자 생성 (id와 sid는 DB에서 자동 생성)
+        # 신규 사용자 생성 (탈퇴한 사용자 있어도 무시하고 새로 생성)
         result = await db.execute(
             text("""
                 INSERT INTO users (google_id, email, name, created_at, updated_at)
@@ -58,7 +59,7 @@ async def get_user_by_id(db: AsyncSession, user_id: str) -> Optional[dict]:
         text("""
             SELECT id, sid, google_id, email, name, created_at, updated_at
             FROM users
-            WHERE id = :user_id
+            WHERE id = :user_id AND deleted_at IS NULL
         """),
         {"user_id": user_id}
     )
@@ -114,3 +115,62 @@ async def check_user_exists_by_google_id(db: AsyncSession, google_id: str) -> bo
     )
     count = result.scalar()
     return count > 0 if count is not None else False
+async def delete_user(db: AsyncSession, user_id: int) -> bool:
+    """
+    회원 탈퇴 처리 (Soft Delete) - 트랜잭션 보장
+    
+    1. Chat Messages 삭제
+    2. Chat Sessions 삭제
+    3. Profiles 삭제
+    4. Users 삭제
+    """
+    try:
+        # 1. Chat Messages (사용자의 모든 세션에 포함된 메시지)
+        await db.execute(
+            text("""
+                UPDATE chat_messages 
+                SET deleted_at = NOW(), updated_at = NOW()
+                WHERE session_id IN (
+                    SELECT id FROM chat_sessions WHERE user_id = :user_id
+                )
+            """),
+            {"user_id": user_id}
+        )
+        
+        # 2. Chat Sessions
+        await db.execute(
+            text("""
+                UPDATE chat_sessions 
+                SET is_active = false, deleted_at = NOW(), updated_at = NOW()
+                WHERE user_id = :user_id
+            """),
+            {"user_id": user_id}
+        )
+        
+        # 3. Profiles
+        await db.execute(
+            text("""
+                UPDATE profiles 
+                SET deleted_at = NOW(), updated_at = NOW()
+                WHERE user_id = :user_id
+            """),
+            {"user_id": user_id}
+        )
+        
+        # 4. Users
+        await db.execute(
+            text("""
+                UPDATE users 
+                SET deleted_at = NOW(), updated_at = NOW()
+                WHERE id = :user_id
+            """),
+            {"user_id": user_id}
+        )
+        
+        await db.commit()
+        return True
+        
+    except Exception as e:
+        await db.rollback()
+        print(f"[delete_user] Error: {e}")
+        return False

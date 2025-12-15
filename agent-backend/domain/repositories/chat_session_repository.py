@@ -26,6 +26,7 @@ class ChatSessionRepository(Repository[ChatSession]):
             result = self.db.table("chat_sessions") \
                 .select("*") \
                 .eq("id", id) \
+                .is_("deleted_at", "null") \
                 .single() \
                 .execute()
             
@@ -42,6 +43,7 @@ class ChatSessionRepository(Repository[ChatSession]):
             result = self.db.table("chat_sessions") \
                 .select("*") \
                 .eq("sid", str(sid)) \
+                .is_("deleted_at", "null") \
                 .single() \
                 .execute()
             
@@ -59,6 +61,7 @@ class ChatSessionRepository(Repository[ChatSession]):
                 .select("*") \
                 .eq("user_id", user_id) \
                 .eq("is_active", True) \
+                .is_("deleted_at", "null") \
                 .order("created_at", desc=True) \
                 .execute()
             
@@ -73,6 +76,7 @@ class ChatSessionRepository(Repository[ChatSession]):
             result = self.db.table("chat_sessions") \
                 .select("*") \
                 .eq("user_id", user_id) \
+                .is_("deleted_at", "null") \
                 .order("created_at", desc=True) \
                 .execute()
             
@@ -104,8 +108,12 @@ class ChatSessionRepository(Repository[ChatSession]):
         """활성 상태 업데이트"""
         try:
             result = self.db.table("chat_sessions") \
-                .update({"is_active": is_active}) \
+                .update({
+                    "is_active": is_active,
+                    "updated_at": datetime.utcnow().isoformat()
+                }) \
                 .eq("sid", str(sid)) \
+                .is_("deleted_at", "null") \
                 .execute()
             
             return len(result.data) > 0
@@ -117,8 +125,12 @@ class ChatSessionRepository(Repository[ChatSession]):
         """세션 제목 업데이트"""
         try:
             result = self.db.table("chat_sessions") \
-                .update({"title": title}) \
+                .update({
+                    "title": title,
+                    "updated_at": datetime.utcnow().isoformat()
+                }) \
                 .eq("sid", str(sid)) \
+                .is_("deleted_at", "null") \
                 .execute()
             
             return len(result.data) > 0
@@ -127,16 +139,36 @@ class ChatSessionRepository(Repository[ChatSession]):
             return False
     
     def delete(self, id: int) -> bool:
-        """Hard Delete (권장하지 않음)"""
+        """Soft Delete"""
         try:
             result = self.db.table("chat_sessions") \
-                .delete() \
+                .update({
+                    "is_active": False,
+                    "deleted_at": datetime.utcnow().isoformat(),
+                    "updated_at": datetime.utcnow().isoformat()
+                }) \
                 .eq("id", id) \
                 .execute()
             
             return len(result.data) > 0
         except Exception as e:
             print(f"[ChatSessionRepository] Error deleting session: {e}")
+            return False
+
+    def delete_all_by_user_id(self, user_id: int) -> bool:
+        """User's All Sessions Soft Delete"""
+        try:
+            result = self.db.table("chat_sessions") \
+                .update({
+                    "is_active": False,
+                    "deleted_at": datetime.utcnow().isoformat(),
+                    "updated_at": datetime.utcnow().isoformat()
+                }) \
+                .eq("user_id", user_id) \
+                .execute()
+            return True
+        except Exception as e:
+            print(f"[ChatSessionRepository] Error deleting user sessions: {e}")
             return False
     
     def _to_entity(self, row: dict) -> ChatSession:
@@ -148,6 +180,8 @@ class ChatSessionRepository(Repository[ChatSession]):
             title=row['title'],
             is_active=row['is_active'],
             created_at=self._parse_datetime(row['created_at']),
+            updated_at=self._parse_datetime(row.get('updated_at')),
+            deleted_at=self._parse_datetime(row.get('deleted_at')),
             vertex_session_id=row.get('vertex_session_id')
         )
     

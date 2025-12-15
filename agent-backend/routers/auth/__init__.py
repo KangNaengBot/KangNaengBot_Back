@@ -10,6 +10,7 @@ from .generate_token import router as generate_token_router
 from .check_user import router as check_user_router
 from .refresh_token import router as refresh_token_router
 from .logout import router as logout_router
+from .delete_user import router as delete_user_router
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -20,5 +21,6 @@ router.include_router(generate_token_router)
 router.include_router(check_user_router)
 router.include_router(refresh_token_router)  # POST /auth/refresh
 router.include_router(logout_router)         # POST /auth/logout
+router.include_router(delete_user_router)
 
 __all__ = ['router']

@@ -27,6 +27,7 @@ class ProfileRepository(Repository[Profile]):
             result = self.db.table("profiles") \
                 .select("*") \
                 .eq("user_id", user_id) \
+                .is_("deleted_at", "null") \
                 .order("updated_at", desc=True) \
                 .limit(1) \
                 .execute()
@@ -93,7 +94,8 @@ class ProfileRepository(Repository[Profile]):
             current_grade=row['current_grade'],
             current_semester=row['current_semester'],
             created_at=self._parse_datetime(row.get('created_at')),
-            updated_at=self._parse_datetime(row.get('updated_at'))
+            updated_at=self._parse_datetime(row.get('updated_at')),
+            deleted_at=self._parse_datetime(row.get('deleted_at'))
         )
     
     def _parse_datetime(self, dt_str: Optional[str]) -> Optional[datetime]:
@@ -104,9 +106,34 @@ class ProfileRepository(Repository[Profile]):
             return dt_str
         return datetime.fromisoformat(dt_str.replace('Z', '+00:00'))
 
-    # Repository 추상 메서드 구현 (필요 없으면 pass)
-    def find_by_id(self, id: int) -> Optional[Profile]:
-        pass
-        
+        return datetime.fromisoformat(dt_str.replace('Z', '+00:00'))
+
+    def delete_by_user_id(self, user_id: int) -> bool:
+        """Soft Delete Profile by User ID"""
+        try:
+            result = self.db.table("profiles") \
+                .update({
+                    "deleted_at": datetime.utcnow().isoformat(),
+                    "updated_at": datetime.utcnow().isoformat()
+                }) \
+                .eq("user_id", user_id) \
+                .execute()
+            return len(result.data) > 0
+        except Exception as e:
+            print(f"[ProfileRepository] Error deleting profile: {e}")
+            return False
+
     def delete(self, id: int) -> bool:
-        pass
+        """Soft Delete"""
+        try:
+            result = self.db.table("profiles") \
+                .update({
+                    "deleted_at": datetime.utcnow().isoformat(),
+                    "updated_at": datetime.utcnow().isoformat()
+                }) \
+                .eq("id", id) \
+                .execute()
+            return len(result.data) > 0
+        except Exception as e:
+            print(f"[ProfileRepository] Error deleting profile: {e}")
+            return False
