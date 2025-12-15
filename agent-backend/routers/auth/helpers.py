@@ -76,3 +76,41 @@ async def get_user_by_id(db: AsyncSession, user_id: str) -> Optional[dict]:
         "created_at": row[5].isoformat() if row[5] else None,
         "updated_at": row[6].isoformat() if row[6] else None
     }
+
+
+async def check_user_exists_by_email(db: AsyncSession, email: str) -> bool:
+    """
+    이메일로 사용자 존재 여부 확인 (비동기)
+    
+    Args:
+        db: 데이터베이스 세션
+        email: 확인할 이메일 주소
+    
+    Returns:
+        사용자가 존재하면 True, 없으면 False
+    """
+    result = await db.execute(
+        text("SELECT COUNT(*) FROM users WHERE email = :email"),
+        {"email": email}
+    )
+    count = result.scalar()
+    return count > 0 if count is not None else False
+
+
+async def check_user_exists_by_google_id(db: AsyncSession, google_id: str) -> bool:
+    """
+    Google ID로 사용자 존재 여부 확인 (비동기)
+    
+    Args:
+        db: 데이터베이스 세션
+        google_id: 확인할 Google ID
+    
+    Returns:
+        사용자가 존재하면 True, 없으면 False
+    """
+    result = await db.execute(
+        text("SELECT COUNT(*) FROM users WHERE google_id = :google_id"),
+        {"google_id": google_id}
+    )
+    count = result.scalar()
+    return count > 0 if count is not None else False
