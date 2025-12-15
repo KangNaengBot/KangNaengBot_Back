@@ -28,6 +28,8 @@ class ChatSession:
     is_active: bool
     created_at: datetime
     vertex_session_id: Optional[str] = None
+    updated_at: Optional[datetime] = None
+    deleted_at: Optional[datetime] = None
     
     @classmethod
     def create(

@@ -3,6 +3,7 @@ ChatMessage 엔티티 - 채팅 메시지를 나타내는 도메인 객체
 """
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Optional
 from uuid import UUID
 
 
@@ -25,6 +26,8 @@ class ChatMessage:
     role: str
     content: str
     created_at: datetime
+    updated_at: Optional[datetime] = None
+    deleted_at: Optional[datetime] = None
     
     # Role 상수
     ROLE_USER = 'user'

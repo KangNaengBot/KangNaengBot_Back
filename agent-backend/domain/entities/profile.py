@@ -19,6 +19,7 @@ class Profile:
     current_semester: int
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
+    deleted_at: Optional[datetime] = None
 
     @classmethod
     def create(cls, user_id: int, profile_name: str, student_id: str, 

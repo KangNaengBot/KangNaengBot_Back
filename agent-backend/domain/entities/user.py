@@ -28,6 +28,7 @@ class User:
     name: Optional[str]
     created_at: datetime
     updated_at: datetime
+    deleted_at: Optional[datetime] = None
     
     @classmethod
     def create(
