@@ -5,6 +5,7 @@ from typing import Optional
 
 from domain.entities.profile import Profile
 from domain.repositories.profile_repository import ProfileRepository
+from utils.input_sanitizer import sanitize_user_info
 
 
 class ProfileService:
@@ -50,6 +51,24 @@ class ProfileService:
         Raises:
             ValueError: 신규 프로필 생성 시 필수 필드 누락
         """
+        # ========================================
+        # 🛡️ 보안: 입력 살균 (최우선 처리)
+        # ========================================
+        # 모든 문자열 필드에 대해 살균 처리
+        if profile_name is not None:
+            profile_name = sanitize_user_info(profile_name)
+        if student_id is not None:
+            student_id = sanitize_user_info(student_id)
+        if college is not None:
+            college = sanitize_user_info(college)
+        if department is not None:
+            department = sanitize_user_info(department)
+        if major is not None:
+            major = sanitize_user_info(major)
+        
+        print(f"[ProfileService] ✅ Profile inputs sanitized for user_id={user_id}")
+        # ========================================
+        
         # 기존 프로필 조회
         existing_profile = self.repo.find_by_user_id(user_id)
         

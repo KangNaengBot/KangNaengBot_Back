@@ -20,6 +20,15 @@ class ProfileRequest(BaseModel):
     major: Optional[str] = Field(None, description="전공 정보")
     current_grade: Optional[int] = Field(None, ge=1, le=5, description="현재 학년 (1-5)")
     current_semester: Optional[int] = Field(None, ge=1, le=2, description="현재 학기 (1-2)")
+    
+    @classmethod
+    def validate_strings(cls, v: Optional[str]) -> Optional[str]:
+        """문자열 필드 검증 (공통)"""
+        if v is not None:
+            v = v.strip()
+            if not v:
+                return None  # 빈 문자열은 None으로 처리
+        return v
 
 
 class ProfileResponse(BaseModel):

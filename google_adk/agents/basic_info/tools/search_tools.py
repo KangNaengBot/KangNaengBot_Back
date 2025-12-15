@@ -14,7 +14,8 @@ BUILDING_SEARCH_ENDPOINT = (
     "projects/88199591627/locations/global/collections/default_collection/"
     "engines/kangnam-building-informati_1762755276541/"
     "servingConfigs/default_search:search"
-)
+) 
+
 
 # Vertex AI Search 엔진 endpoint - 행정부서 연락처
 ADMIN_SEARCH_ENDPOINT = (

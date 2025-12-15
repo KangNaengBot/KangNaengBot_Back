@@ -2,6 +2,7 @@
 fastapi==0.119.1
 uvicorn[standard]==0.38.0
 pydantic==2.12.3
+slowapi==0.1.9
 
 # Google Cloud & Vertex AI
 google-cloud-aiplatform
