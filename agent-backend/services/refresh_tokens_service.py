@@ -4,7 +4,7 @@ RefreshTokensService - Refresh Token으로 새 토큰 생성 (Sliding Session)
 단일 책임: Refresh Token을 검증하고 새로운 Access + Refresh Token을 발급합니다.
 """
 from typing import Tuple
-from utils.jwt import verify_refresh_token, create_access_token, create_refresh_token
+from utils.jwt import verify_refresh_token
 
 
 class RefreshTokensService:
@@ -47,14 +47,9 @@ class RefreshTokensService:
         if not user_id:
             raise ValueError("Invalid refresh token: missing user_id")
         
-        # 새 Access Token 생성 (1시간)
-        # email은 Refresh Token에 없으므로 user_id만 포함
-        new_access_token = create_access_token(data={
-            "user_id": user_id
-        })
-        
-        # 새 Refresh Token 생성 (7일) - Sliding Session
-        new_refresh_token = create_refresh_token(user_id=user_id)
+        # 새 토큰 쌍 발급 (최초 발급과 동일한 로직 사용)
+        from utils.jwt import issue_token_pair
+        new_access_token, new_refresh_token = issue_token_pair(user_id)
         
         print(f"[RefreshTokensService] Tokens refreshed for user_id={user_id}")
         
