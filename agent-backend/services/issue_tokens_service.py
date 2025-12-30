@@ -4,7 +4,6 @@ IssueTokensService - Access Token + Refresh Token 발급
 단일 책임: 사용자 정보를 받아 두 가지 토큰을 함께 발급합니다.
 """
 from typing import Tuple
-from utils.jwt import create_access_token, create_refresh_token
 
 
 class IssueTokensService:
@@ -15,35 +14,29 @@ class IssueTokensService:
     """
     
     @staticmethod
-    def issue_tokens(user_id: int, email: str) -> Tuple[str, str]:
+    def issue_tokens(user_id: int) -> Tuple[str, str]:
         """
         Access Token과 Refresh Token 발급
         
         Args:
             user_id: 사용자 ID
-            email: 사용자 이메일
             
         Returns:
             (access_token, refresh_token) 튜플
             
         Example:
-            access_token, refresh_token = IssueTokensService.issue_tokens(123, "user@example.com")
+            access_token, refresh_token = IssueTokensService.issue_tokens(123)
+            
+        Note:
+            실제 토큰 생성은 utils/jwt.issue_token_pair()로 위임됩니다.
         """
-        # Access Token 생성 (1시간, type: "access")
-        access_token = create_access_token(data={
-            "user_id": user_id,
-            "email": email
-        })
-        
-        # Refresh Token 생성 (7일, type: "refresh")
-        refresh_token = create_refresh_token(user_id=user_id)
+        from utils.jwt import issue_token_pair
         
         print(f"[IssueTokensService] Tokens issued for user_id={user_id}")
-        
-        return access_token, refresh_token
+        return issue_token_pair(user_id)
 
 
 # Convenience function
-def issue_tokens(user_id: int, email: str) -> Tuple[str, str]:
+def issue_tokens(user_id: int) -> Tuple[str, str]:
     """토큰 발급 (편의 함수)"""
-    return IssueTokensService.issue_tokens(user_id, email)
+    return IssueTokensService.issue_tokens(user_id)

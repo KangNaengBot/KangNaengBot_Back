@@ -35,8 +35,8 @@ async def generate_test_token(user_id: str):
     Example:
         POST /auth/generate-token?user_id=1
     """
-    # JWT 토큰 생성
-    access_token = create_access_token(data={"user_id": user_id})
+    # JWT 토큰 생성 (user_id를 int로 변환)
+    access_token = create_access_token(user_id=int(user_id))
     
     return GenerateTokenResponse(
         access_token=access_token,

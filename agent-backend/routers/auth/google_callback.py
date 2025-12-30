@@ -43,7 +43,8 @@ async def google_callback(request: Request, response: Response, db: AsyncSession
         user_id = await upsert_user(db, google_id, email, name)
         
         # Access Token(1시간) + Refresh Token(7일) 발급
-        access_token, refresh_token = issue_tokens(user_id, email)
+        # 토큰에는 user_id만 포함 (email은 DB에서 조회)
+        access_token, refresh_token = issue_tokens(user_id)
         
         # 세션에서 프론트엔드 redirect_uri 가져오기 (없으면 기본값 사용)
         frontend_redirect = request.session.get('frontend_redirect_uri')
