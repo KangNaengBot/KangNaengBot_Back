@@ -8,6 +8,7 @@ dependencies = [
     "absl-py==2.1.0",
     "authlib>=1.5.1",
     "beautifulsoup4==4.12.3",
+    "email-validator>=2.0.0",
     "fastapi==0.119.1",
     "google-adk>=1.18.0",
     "google-cloud-aiplatform>=1.128.0",
