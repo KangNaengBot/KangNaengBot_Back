@@ -26,7 +26,7 @@ class ChatSession:
     user_id: int
     title: str
     is_active: bool
-    created_at: datetime
+    created_at: Optional[datetime] = None
     vertex_session_id: Optional[str] = None
     updated_at: Optional[datetime] = None
     deleted_at: Optional[datetime] = None

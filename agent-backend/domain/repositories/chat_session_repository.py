@@ -185,8 +185,10 @@ class ChatSessionRepository(Repository[ChatSession]):
             vertex_session_id=row.get('vertex_session_id')
         )
     
-    def _parse_datetime(self, dt_str: str) -> datetime:
+    def _parse_datetime(self, dt_str: Optional[str]) -> Optional[datetime]:
         """ISO 형식 문자열을 datetime으로 변환"""
+        if not dt_str:
+            return None
         if isinstance(dt_str, datetime):
             return dt_str
         # Supabase는 ISO 8601 형식 반환

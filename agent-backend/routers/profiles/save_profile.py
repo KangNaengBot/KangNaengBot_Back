@@ -113,9 +113,9 @@ async def save_profile(
             current_semester=profile_data.current_semester
         )
         
-        # 응답 반환
+        # 응답 반환 - user_sid를 id로 사용
         return ProfileResponse(
-            id=str(profile.sid),
+            id=str(profile.user_sid) if profile.user_sid else str(profile.user_id),
             profile_name=profile.profile_name,
             student_id=profile.student_id,
             college=profile.college,
