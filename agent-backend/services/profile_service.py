@@ -77,6 +77,7 @@ class ProfileService:
             updated_profile = Profile(
                 id=existing_profile.id,
                 user_id=user_id,
+                user_sid=existing_profile.user_sid,
                 profile_name=profile_name if profile_name is not None else existing_profile.profile_name,
                 student_id=student_id if student_id is not None else existing_profile.student_id,
                 college=college if college is not None else existing_profile.college,

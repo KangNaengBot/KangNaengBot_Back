@@ -13,9 +13,8 @@ class Profile:
 
     Attributes:
         id: DB 내부 ID (BIGINT)
-        sid: 외부 노출용 UUID
         user_id: 사용자 ID
-        user_sid: 사용자 외부 노출용 UUID (users.sid)
+        user_sid: 사용자 외부 노출용 UUID (users.sid) - 응답용
         profile_name: 프로필 이름
         student_id: 학번
         college: 단과대학
@@ -27,9 +26,8 @@ class Profile:
         updated_at: 수정 시각
         deleted_at: 삭제 시각 (Soft Delete)
     """
-    id: Optional[int]
-    sid: UUID
-    user_id: int
+    id: Optional[int] = None
+    user_id: int = 0
     user_sid: Optional[UUID] = None
     profile_name: str = ""
     student_id: str = ""
@@ -49,8 +47,8 @@ class Profile:
         """새 프로필 생성 (팩토리 메서드)"""
         return cls(
             id=None,
-            sid=UUID('00000000-0000-0000-0000-000000000000'),  # DB에서 생성
             user_id=user_id,
+            user_sid=None,  # Repository에서 조회 후 추가
             profile_name=profile_name,
             student_id=student_id,
             college=college,

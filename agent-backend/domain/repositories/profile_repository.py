@@ -75,7 +75,8 @@ class ProfileRepository(Repository[Profile]):
         try:
             # 기존 프로필 확인 (수정된 로직으로 최신 프로필 조회)
             existing = self.find_by_user_id(profile.user_id)
-            
+
+            # DB에 저장할 데이터 (user_sid는 DB 컬럼이 아니므로 제외)
             data = {
                 "user_id": profile.user_id,
                 "profile_name": profile.profile_name,
@@ -84,30 +85,51 @@ class ProfileRepository(Repository[Profile]):
                 "department": profile.department,
                 "major": profile.major,
                 "current_grade": profile.current_grade,
-                "current_semester": profile.current_semester,
-                "updated_at": datetime.now().isoformat()
+                "current_semester": profile.current_semester
             }
-            
+
             if existing:
                 # 업데이트 - 기존 ID 사용
                 result = self.db.table("profiles") \
                     .update(data) \
                     .eq("id", existing.id) \
                     .execute()
-                
-                if result.data:
-                    return self._to_entity(result.data[0])
+
+                if result.data and len(result.data) > 0:
+                    saved_data = result.data[0]
+                    # user_sid 조회 후 추가
+                    user_result = self.db.table("users") \
+                        .select("sid") \
+                        .eq("id", profile.user_id) \
+                        .limit(1) \
+                        .execute()
+
+                    if user_result.data and len(user_result.data) > 0:
+                        saved_data['user_sid'] = user_result.data[0]['sid']
+
+                    return self._to_entity(saved_data)
             else:
                 # 신규 생성
                 result = self.db.table("profiles") \
                     .insert(data) \
                     .execute()
-                
-                if result.data:
-                    return self._to_entity(result.data[0])
-            
+
+                if result.data and len(result.data) > 0:
+                    saved_data = result.data[0]
+                    # user_sid 조회 후 추가
+                    user_result = self.db.table("users") \
+                        .select("sid") \
+                        .eq("id", profile.user_id) \
+                        .limit(1) \
+                        .execute()
+
+                    if user_result.data and len(user_result.data) > 0:
+                        saved_data['user_sid'] = user_result.data[0]['sid']
+
+                    return self._to_entity(saved_data)
+
             raise Exception("Failed to save profile")
-            
+
         except Exception as e:
             print(f"[ProfileRepository] Error saving profile: {e}")
             raise
@@ -123,7 +145,6 @@ class ProfileRepository(Repository[Profile]):
 
         return Profile(
             id=row['id'],
-            sid=UUID(row['sid']) if isinstance(row.get('sid'), str) else row.get('sid'),
             user_id=row['user_id'],
             user_sid=user_sid,
             profile_name=row['profile_name'],
