@@ -35,10 +35,9 @@ async def get_profile(
         if not profile:
             return None
         
-        # 응답 반환
+        # 응답 반환 - user_sid를 id로 사용
         return ProfileResponse(
-            id=profile.id,
-            user_id=profile.user_id,
+            id=str(profile.user_sid) if profile.user_sid else str(profile.user_id),
             profile_name=profile.profile_name,
             student_id=profile.student_id,
             college=profile.college,

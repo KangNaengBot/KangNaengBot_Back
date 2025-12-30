@@ -19,11 +19,27 @@ class ProfileRepository(Repository[Profile]):
         """
         self.db = supabase
     
-    def find_by_user_id(self, user_id: int) -> Optional[Profile]:
-        """사용자 ID로 프로필 조회"""
+    def find_by_id(self, id: int) -> Optional[Profile]:
+        """ID로 프로필 조회"""
         try:
-            # single()은 결과가 2개 이상이면 에러가 발생하므로
-            # limit(1)을 사용하여 중복이 있어도 최신 1개만 가져오도록 수정
+            result = self.db.table("profiles") \
+                .select("*") \
+                .eq("id", id) \
+                .is_("deleted_at", "null") \
+                .limit(1) \
+                .execute()
+
+            if result.data and len(result.data) > 0:
+                return self._to_entity(result.data[0])
+            return None
+        except Exception as e:
+            print(f"[ProfileRepository] Error finding profile by id: {e}")
+            return None
+
+    def find_by_user_id(self, user_id: int) -> Optional[Profile]:
+        """사용자 ID로 프로필 조회 (users.sid 포함)"""
+        try:
+            # 1. 프로필 조회
             result = self.db.table("profiles") \
                 .select("*") \
                 .eq("user_id", user_id) \
@@ -31,10 +47,25 @@ class ProfileRepository(Repository[Profile]):
                 .order("updated_at", desc=True) \
                 .limit(1) \
                 .execute()
-            
-            if result.data and len(result.data) > 0:
-                return self._to_entity(result.data[0])
-            return None
+
+            if not result.data or len(result.data) == 0:
+                return None
+
+            profile_data = result.data[0]
+
+            # 2. users 테이블에서 sid 조회
+            user_result = self.db.table("users") \
+                .select("sid") \
+                .eq("id", user_id) \
+                .limit(1) \
+                .execute()
+
+            # 3. user_sid 추가
+            if user_result.data and len(user_result.data) > 0:
+                profile_data['user_sid'] = user_result.data[0]['sid']
+
+            return self._to_entity(profile_data)
+
         except Exception as e:
             print(f"[ProfileRepository] Error finding profile by user_id: {e}")
             return None
@@ -83,9 +114,18 @@ class ProfileRepository(Repository[Profile]):
     
     def _to_entity(self, row: dict) -> Profile:
         """DB Row → Entity 변환"""
+        from uuid import UUID
+
+        # user_sid 추출 (별도 조회된 경우)
+        user_sid = None
+        if 'user_sid' in row and row['user_sid']:
+            user_sid = UUID(row['user_sid']) if isinstance(row['user_sid'], str) else row['user_sid']
+
         return Profile(
             id=row['id'],
+            sid=UUID(row['sid']) if isinstance(row.get('sid'), str) else row.get('sid'),
             user_id=row['user_id'],
+            user_sid=user_sid,
             profile_name=row['profile_name'],
             student_id=row['student_id'],
             college=row['college'],
