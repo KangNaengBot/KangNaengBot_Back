@@ -51,6 +51,11 @@ JWT_SECRET_KEY = get_secret("JWT_SECRET_KEY", default=os.getenv("JWT_SECRET_KEY"
 JWT_ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
 JWT_EXPIRATION_HOURS = int(os.getenv("JWT_EXPIRATION_HOURS", "24"))
 
+# Brevo 이메일 설정 (Secret Manager -> 환경 변수)
+BREVO_API_KEY = get_secret("BREVO_API_KEY", default=os.getenv("BREVO_API_KEY"))
+SENDER_NAME = os.getenv("SENDER_NAME", "강냉봇")
+SENDER_EMAIL = os.getenv("SENDER_EMAIL", "kpg45123@gmail.com")
+
 # 환경 확인
 def check_config():
     """환경 변수 확인"""

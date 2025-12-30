@@ -30,6 +30,7 @@ from routers.chat import router as chat_router
 from routers.auth import router as auth_router
 from routers.profiles import router as profiles_router
 from routers import database
+from routers.email import router as email_router
 
 import config
 
@@ -110,6 +111,7 @@ app.include_router(profiles_router)
 from routers.proxy import subject_proxy
 app.include_router(subject_proxy.router)
 app.include_router(database.router, prefix="/db", tags=["database"])
+app.include_router(email_router)
 
 # 헬스체크 (Cloud Run 필수)
 @app.get("/health")
@@ -131,7 +133,8 @@ async def root():
             "send_message": "POST /chat/message",
             "get_messages": "GET /sessions/{session_id}/messages",
             "delete_session": "DELETE /sessions/{session_id}",
-            "save_profile": "POST /profiles"
+            "save_profile": "POST /profiles",
+            "send_email": "POST /email/send"
         }
     }
 

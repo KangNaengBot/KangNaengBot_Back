@@ -27,5 +27,8 @@ psycopg[binary,pool]==3.2.1
 supabase==2.24.0
 beautifulsoup4==4.12.3
 
+# Brevo 이메일 서비스
+sib-api-v3-sdk
+
 # 배포 스크립트
 absl-py==2.1.0
