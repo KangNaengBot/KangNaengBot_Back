@@ -33,8 +33,7 @@ class ProfileRequest(BaseModel):
 
 class ProfileResponse(BaseModel):
     """프로필 저장 응답"""
-    id: int
-    user_id: int
+    id: str
     profile_name: str
     student_id: str
     college: str
@@ -116,8 +115,7 @@ async def save_profile(
         
         # 응답 반환
         return ProfileResponse(
-            id=profile.id,
-            user_id=profile.user_id,
+            id=str(profile.sid),
             profile_name=profile.profile_name,
             student_id=profile.student_id,
             college=profile.college,
