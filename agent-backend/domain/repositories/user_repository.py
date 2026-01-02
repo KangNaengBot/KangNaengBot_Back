@@ -154,6 +154,13 @@ class UserRepository(Repository[User]):
     
     def _parse_datetime(self, dt_str: str) -> datetime:
         """ISO 형식 문자열을 datetime으로 변환"""
+        if dt_str is None:
+            return None
         if isinstance(dt_str, datetime):
             return dt_str
+        if not isinstance(dt_str, str):
+            print(f"[UserRepository] Warning: Expected str but got {type(dt_str).__name__}: {dt_str}")
+            return None
+        if not dt_str.strip():
+            return None
         return datetime.fromisoformat(dt_str.replace('Z', '+00:00'))

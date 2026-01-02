@@ -12,11 +12,6 @@ from google.adk.agents import Agent
 from google_adk.config import PROJECT_ID, VERTEX_AI_LOCATION
 from google_adk.callbacks import safety_check_callback
 
-# Vertex AI Client 설정을 위한 임포트
-from google.adk.models.google_llm import Gemini
-from google.genai import Client, types
-from functools import cached_property
-
 # ============================================================================
 # 각 분야별 도구 Import (8개)
 # ============================================================================
@@ -53,25 +48,6 @@ from google_adk.agents.graduation.tools.search_tools import (
 vertexai.init(project=PROJECT_ID, location=VERTEX_AI_LOCATION)
 
 # ============================================================================
-# Custom Gemini Model (Vertex AI 설정 명시)
-# ============================================================================
-
-class ConfiguredGemini(Gemini):
-    """Vertex AI 설정을 명시적으로 주입한 Gemini 모델"""
-    
-    @cached_property
-    def api_client(self) -> Client:
-        return Client(
-            vertexai=True,
-            project=PROJECT_ID,
-            location=VERTEX_AI_LOCATION,
-            http_options=types.HttpOptions(
-                headers=self._tracking_headers,
-                retry_options=self.retry_options,
-            )
-        )
-
-# ============================================================================
 # 통합 도구 리스트 (9개)
 # ============================================================================
 
@@ -96,8 +72,9 @@ ALL_KANGNAM_TOOLS = [
 # ============================================================================
 
 kangnam_agent = Agent(
-    # 커스텀 설정된 모델 사용
-    model=ConfiguredGemini(model='gemini-2.5-flash'),
+    # ✅ 공식 문서 권장: 모델명을 문자열로 직접 지정
+    # https://cloud.google.com/python/docs/reference/aiplatform/latest
+    model='gemini-2.5-flash',
     name='kangnam_assistant',
     
     description='''

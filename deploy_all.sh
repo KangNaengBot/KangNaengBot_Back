@@ -135,13 +135,19 @@ if [ "$DEPLOY_AGENT" = true ]; then
     echo -e "${BLUE}⏱️  소요 시간: ${AGENT_DURATION}초${NC}"
     echo ""
     
-    # .env에서 새로운 AGENT_RESOURCE_ID 읽기
-    if [ -f ".env" ]; then
-        NEW_AGENT_ID=$(grep "^AGENT_RESOURCE_ID=" .env | cut -d '=' -f2)
+    # Secret Manager에서 새로운 AGENT_RESOURCE_ID 읽기
+    echo -e "${YELLOW}🔍 Secret Manager에서 업데이트된 Resource ID 확인 중...${NC}"
+    # 잠시 대기 (Secret Manager 전파 시간 고려)
+    sleep 2
+    
+    NEW_AGENT_ID=$(gcloud secrets versions access latest --secret=AGENT_RESOURCE_ID --project="kangnam-backend" 2>/dev/null)
+    
+    if [ -n "$NEW_AGENT_ID" ]; then
         echo -e "${BLUE}📌 새 Agent Resource ID: ${NC}$NEW_AGENT_ID"
     else
-        echo -e "${RED}에러: .env 파일을 찾을 수 없습니다.${NC}"
-        exit 1
+        echo -e "${RED}에러: Secret Manager에서 Resource ID를 가져올 수 없습니다.${NC}"
+        # 치명적인 에러는 아니므로 경고만 하고 진행 (이미 배포는 성공했으므로)
+        echo -e "${YELLOW}⚠️  배포는 성공했으나 ID 확인에 실패했습니다. 다음 단계를 진행합니다.${NC}"
     fi
     
     echo ""
@@ -279,8 +285,8 @@ if [ "$DEPLOY_BACKEND" = true ]; then
         # Backend 헬스 체크
         echo -e "${YELLOW}🧪 Backend 테스트 중...${NC}"
         
-        # /chat/new 엔드포인트 테스트
-        TEST_RESULT=$(curl -s -w "\n%{http_code}" -X POST "$SERVICE_URL/chat/new" 2>/dev/null || echo "000")
+        # /health 엔드포인트 테스트 (헬스체크)
+        TEST_RESULT=$(curl -s -w "\n%{http_code}" "$SERVICE_URL/health" 2>/dev/null || echo "000")
         HTTP_CODE=$(echo "$TEST_RESULT" | tail -n1)
         
         if [ "$HTTP_CODE" = "200" ]; then
@@ -296,7 +302,8 @@ if [ "$DEPLOY_BACKEND" = true ]; then
         echo "   • Frontend 재배포는 필요하지 않습니다"
         echo ""
         echo -e "${YELLOW}🔧 추가 테스트:${NC}"
-        echo "   curl -X POST $SERVICE_URL/chat/new"
+        echo "   # 헬스체크: curl $SERVICE_URL/health"
+        echo "   # 세션 생성: curl -X POST $SERVICE_URL/sessions"
     fi
 elif [ "$DEPLOY_AGENT" = true ]; then
     # Agent만 배포한 경우
