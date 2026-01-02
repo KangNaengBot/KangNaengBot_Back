@@ -44,12 +44,21 @@ def create() -> None:
     print()
     
     # Root agent를 AdkApp으로 래핑
+    # ✅ enable_tracing 대신 환경 변수 사용 (공식 문서 권장)
     adk_app = reasoning_engines.AdkApp(
         agent=root_agent,
-        enable_tracing=True,
     )
     
     print("📦 Packaging google_adk...")
+    
+    # ✅ 텔레메트리 환경 변수 (공식 문서 권장)
+    # https://cloud.google.com/vertex-ai/generative-ai/docs/agent-builder/develop-agent
+    env_vars = {
+        # 에이전트 트레이스와 로그 사용 (프롬프트/응답 제외)
+        "GOOGLE_CLOUD_AGENT_ENGINE_ENABLE_TELEMETRY": "true",
+        # 입력 프롬프트와 출력 응답의 로깅 사용
+        "OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT": "true",
+    }
     
     # Memory Bank 설정
     memory_bank_config = {
@@ -77,11 +86,13 @@ def create() -> None:
     remote_app = agent_engines.create(
         agent_engine=adk_app,
         requirements=[
-            "google-cloud-aiplatform[adk,agent_engines]",
+            "google-cloud-aiplatform[adk,agent_engines]>=1.132.0",
+            "google-adk>=1.21.0",
             "requests",
             "beautifulsoup4",
         ],
         extra_packages=["./google_adk"],
+        env_vars=env_vars,  # ✅ 텔레메트리 환경 변수 추가
     )
     
     print()

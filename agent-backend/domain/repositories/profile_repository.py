@@ -161,12 +161,15 @@ class ProfileRepository(Repository[Profile]):
     
     def _parse_datetime(self, dt_str: Optional[str]) -> Optional[datetime]:
         """ISO 형식 문자열을 datetime으로 변환"""
-        if not dt_str:
+        if dt_str is None:
             return None
         if isinstance(dt_str, datetime):
             return dt_str
-        return datetime.fromisoformat(dt_str.replace('Z', '+00:00'))
-
+        if not isinstance(dt_str, str):
+            print(f"[ProfileRepository] Warning: Expected str but got {type(dt_str).__name__}: {dt_str}")
+            return None
+        if not dt_str.strip():
+            return None
         return datetime.fromisoformat(dt_str.replace('Z', '+00:00'))
 
     def delete_by_user_id(self, user_id: int) -> bool:

@@ -41,38 +41,49 @@ class SessionService:
     async def create_session(self, user_id: int, title: str = "새로운 대화") -> ChatSession:
         """
         새 세션 생성
-        
+
         1. Vertex AI Session Service에서 세션 생성
         2. DB에 메타데이터 저장
-        
+
         Args:
             user_id: 사용자 ID (BIGINT)
             title: 세션 제목
-            
+
         Returns:
             생성된 ChatSession 엔티티
         """
         try:
             # 1. Vertex AI에서 세션 생성
+            print(f"[SessionService] Creating Vertex AI session for user_id: {user_id}")
             vertex_session = await self.vertex_session_service.create_session(
                 app_name=self.app_name,
                 user_id=str(user_id)  # Vertex AI는 문자열 user_id 사용
             )
-            
+
+            print(f"[SessionService] ✅ Vertex AI session created:")
+            print(f"    - vertex_session.id: {vertex_session.id}")
+            print(f"    - app_name: {self.app_name}")
+            print(f"    - user_id: {user_id}")
+
             # 2. DB에 메타데이터 저장
             session_entity = ChatSession.create(
                 user_id=user_id,
                 vertex_session_id=vertex_session.id,  # Vertex AI 세션 ID
                 title=title
             )
-            
+
             saved_session = self.repo.save(session_entity)
-            
+
             print(f"[SessionService] Created session: {saved_session.sid}")
+            print(f"    - DB session.id: {saved_session.id}")
+            print(f"    - DB session.sid: {saved_session.sid}")
+            print(f"    - vertex_session_id: {saved_session.vertex_session_id}")
             return saved_session
-            
+
         except Exception as e:
             print(f"[SessionService] Failed to create session: {e}")
+            import traceback
+            traceback.print_exc()
             raise
     
     def create_session_sync(self, user_id: int, title: str = "새로운 대화") -> ChatSession:
@@ -110,7 +121,7 @@ class SessionService:
     async def delete_vertex_session(self, user_id: int, session_id: str):
         """
         Vertex AI 세션 삭제
-        
+
         Args:
             user_id: 사용자 ID
             session_id: Vertex AI 세션 ID
@@ -124,6 +135,29 @@ class SessionService:
             print(f"[SessionService] Deleted Vertex AI session: {session_id}")
         except Exception as e:
             print(f"[SessionService] Failed to delete Vertex AI session: {e}")
+
+    async def get_vertex_session(self, user_id: int, session_id: str):
+        """
+        Vertex AI 세션 조회 (존재 여부 확인용)
+
+        Args:
+            user_id: 사용자 ID
+            session_id: Vertex AI 세션 ID
+
+        Returns:
+            Session object if exists, None otherwise
+        """
+        try:
+            session = await self.vertex_session_service.get_session(
+                app_name=self.app_name,
+                user_id=str(user_id),
+                session_id=session_id
+            )
+            print(f"[SessionService] ✅ Vertex AI session found: {session_id}")
+            return session
+        except Exception as e:
+            print(f"[SessionService] ❌ Vertex AI session not found or error: {e}")
+            return None
 
 
 # Dependency Injection을 위한 싱글톤 팩토리
