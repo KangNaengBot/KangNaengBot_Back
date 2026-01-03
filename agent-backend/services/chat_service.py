@@ -267,13 +267,16 @@ class ChatService:
                     # ✅ 공식 문서에 따른 올바른 쿼리 방법
                     # async for event in remote_app.async_stream_query(
                     #     user_id="user-id",
+                    #     session_id="session-id",
                     #     message="What is the exchange rate...",
                     # ):
-                    print(f"[ChatService] � Calling remote_app.async_stream_query()")
-                    
+                    print(f"[ChatService] 🚀 Calling remote_app.async_stream_query()")
+
                     # 비동기 스트림 쿼리 (공식 API)
+                    # CRITICAL: session_id를 명시적으로 전달해야 대화 컨텍스트가 유지됨
                     async for event in self.remote_app.async_stream_query(
                         user_id=session_owner_id,
+                        session_id=session.vertex_session_id,
                         message=test_message,
                     ):
                         print(f"[ChatService] 📥 Event received: {type(event).__name__}")
