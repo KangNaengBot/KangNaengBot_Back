@@ -28,15 +28,28 @@ class SessionService:
         """
         self.repo = session_repo
         
+        # Agent Engine ID 추출
+        # AGENT_RESOURCE_ID는 full resource name 형식일 수 있음
+        # 예: projects/PROJECT/locations/LOCATION/reasoningEngines/12345
+        resource_id = config.AGENT_RESOURCE_ID.strip() if config.AGENT_RESOURCE_ID else None
+        if resource_id and resource_id.startswith("projects/"):
+            # Full resource name에서 마지막 ID만 추출
+            agent_engine_id = resource_id.split("/")[-1]
+        else:
+            # 이미 간단한 ID 형식
+            agent_engine_id = resource_id
+
         # Vertex AI Session Service 초기화
+        # CRITICAL: agent_engine_id 파라미터를 반드시 전달해야 함
+        # 이 파라미터가 없으면 매번 새로운 임시 세션이 생성됨
         self.vertex_session_service = VertexAiSessionService(
             project=config.GOOGLE_CLOUD_PROJECT,
-            location=config.VERTEX_AI_LOCATION
+            location=config.VERTEX_AI_LOCATION,
+            agent_engine_id=agent_engine_id
         )
-        
-        # Agent Engine ID (app_name으로 사용)
-        # 중요: 값 뒤에 개행 문자(\n)가 포함될 수 있으므로 반드시 strip() 처리
-        self.app_name = config.AGENT_RESOURCE_ID.strip() if config.AGENT_RESOURCE_ID else None
+
+        # app_name은 애플리케이션 식별자 (간단한 문자열)
+        self.app_name = agent_engine_id
     
     async def create_session(self, user_id: int, title: str = "새로운 대화") -> ChatSession:
         """
