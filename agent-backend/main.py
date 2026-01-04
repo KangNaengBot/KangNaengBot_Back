@@ -59,7 +59,7 @@ IS_PRODUCTION = os.getenv("K_SERVICE") is not None  # Cloud Run 환경 감지
 # CORS 설정 (프론트엔드 연동용)
 # 프로덕션과 로컬 개발 환경 모두 지원
 allowed_origins = [
-    "https://gang-naeng-bot-fe.vercel.app",  # 프로덕션 프론트엔드
+    "https://kang-naeng-bot-fe.vercel.app",  # 프로덕션 프론트엔드
     "http://localhost:3000",
     "http://localhost:8080",
     "http://127.0.0.1:3000",

@@ -34,7 +34,7 @@ GOOGLE_CLIENT_ID = os.getenv(
 GOOGLE_CLIENT_SECRET = get_secret("GOOGLE_CLIENT_SECRET", default=os.getenv("GOOGLE_CLIENT_SECRET"))
 
 # Frontend URL (백엔드가 인증 후 프론트엔드로 리다이렉트할 때 사용)
-FRONTEND_URL = os.getenv("FRONTEND_URL", "https://gang-naeng-bot-fe.vercel.app")
+FRONTEND_URL = os.getenv("FRONTEND_URL", "https://kang-naeng-bot-fe.vercel.app")
 
 # OAuth Redirect URI (Google이 백엔드로 콜백할 때 사용)
 OAUTH_REDIRECT_URI = os.getenv(
